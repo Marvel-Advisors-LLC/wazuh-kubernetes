@@ -10,3 +10,4 @@ wazuh-eks/certs/indexer_cluster/*.pem
 wazuh-eks/certs/indexer_cluster/*.key
 wazuh-eks/certs/indexer_cluster/*.csr
 wazuh-eks/certs/indexer_cluster/*.slr
+wazuh-eks/certs/indexer_cluster/root-ca.srl

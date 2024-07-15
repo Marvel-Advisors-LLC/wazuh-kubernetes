@@ -31,5 +31,8 @@ spec:
   - name: dashboard
     port: 443
     targetPort: dashboard-port
+  - name: syslog-ng
+    port: 514
+    targetPort: syslog-ng-port
   selector:
     lbtype: external
