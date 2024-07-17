@@ -56,6 +56,9 @@ spec:
               add: ["SYS_CHROOT"]
           volumeMounts:
             - name: config
+              mountPath: /etc/filebeat/filebeat.yml
+              subPath: filebeat.yml
+            - name: config
               mountPath: /wazuh-config-mount/etc/ossec.conf
               subPath: worker.conf
               readOnly: true
