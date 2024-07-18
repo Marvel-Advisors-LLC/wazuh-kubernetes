@@ -54,7 +54,7 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/filebeat/filebeat.yml
-              subPath: filebeat.yml
+              subPath: filebeat_custom.yml
             - name: config
               mountPath: /wazuh-config-mount/etc/ossec.conf
               subPath: master.conf
