@@ -16,6 +16,7 @@ metadata:
 spec:
   type: LoadBalancer
   ports:
+
   - name: manager-worker-agents-events
     port: 1514
     targetPort: agents-events
