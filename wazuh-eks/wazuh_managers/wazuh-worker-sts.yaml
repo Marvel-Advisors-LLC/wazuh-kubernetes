@@ -59,6 +59,9 @@ spec:
               mountPath: /wazuh-config-mount/etc/ossec.conf
               subPath: worker.conf
               readOnly: true
+            - name: config
+              mountPath: /etc/filebeat/filebeat.yml
+              subPath: filebeat.yml
             - name: filebeat-certs
               mountPath: /etc/ssl/root-ca.pem
               readOnly: true
@@ -109,6 +112,8 @@ spec:
               name: agents-events
             - containerPort: 1516
               name: cluster-port
+            - containerPort: 514
+              name: syslog-port   
           env:
             - name: INDEXER_URL
               value: 'https://wazuh-internal-lb:9200'
