@@ -6,7 +6,7 @@ metadata:
   name: wazuh-dashboard-service
 spec:
   ports:
-    - port: 443
+    - port: 5601
       targetPort: 5601
       protocol: TCP
   type: NodePort
@@ -18,16 +18,13 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   namespace: wazuh
-  name: wazuh-ingress-dashboard
+  name: wazuh-dashboard-ingress
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'
-    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:590183765660:certificate/e698d632-0d24-43d4-80f3-5c597af5f094
-    alb.ingress.kubernetes.io/ssl-redirect: '443'
-    alb.ingress.kubernetes.io/backend-protocol: HTTPS
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/subnets: "subnet-05fbf4a6250fa2324, subnet-0c3fca6bec1072d2a"
-
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:590183765660:certificate/e698d632-0d24-43d4-80f3-5c597af5f094
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
 spec:
   ingressClassName: alb
   rules:
@@ -39,4 +36,8 @@ spec:
             service:
               name: wazuh-dashboard-service
               port:
-                number: 443
+                number: 5601
+  tls:
+    - hosts:
+      - dashboard.siem-marvelad.com
+      secretName: tls-secret
