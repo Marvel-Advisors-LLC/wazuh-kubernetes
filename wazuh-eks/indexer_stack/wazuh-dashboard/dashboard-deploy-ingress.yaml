@@ -16,14 +16,11 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: wazuh-dashboard-80
-      lbtype: external
+      app.kubernetes.io/name: wazuh-dashboard-80
   template:
     metadata:
       labels:
-        app: wazuh-dashboard-80
-        lbtype: external
-      name: wazuh-dashboard-new
+        app.kubernetes.io/name: wazuh-dashboard-80
     spec:
       volumes:
         - name: config
@@ -58,7 +55,6 @@ spec:
               readOnly: true
           ports:
             - containerPort: 80
-              name: dashboard-port
           env:
             - name: INDEXER_URL
               value: 'https://wazuh-internal-lb:9200'
