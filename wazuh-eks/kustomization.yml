@@ -63,4 +63,4 @@ resources:
   - indexer_stack/wazuh-dashboard/lb-external.yaml
   - indexer_stack/wazuh-dashboard/lb-internal.yaml
   - indexer_stack/wazuh-dashboard/dashboard-deploy.yaml
-  - indexer_stack/wazuh-dashboard/dashboard-deploy-ingress.yaml
+  - indexer_stack/wazuh-dashboard/dashboard-service-ingress.yaml
