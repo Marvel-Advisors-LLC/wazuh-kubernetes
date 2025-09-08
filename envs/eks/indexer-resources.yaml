@@ -18,10 +18,10 @@ spec:
           resources:
             requests:
               cpu: 666m
-              memory: 2Gi
+              memory: 4Gi
             limits:
               cpu: 1
-              memory: 2Gi
+              memory: 4Gi
   volumeClaimTemplates:
     - metadata:
         name: wazuh-indexer

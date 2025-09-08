@@ -62,4 +62,11 @@ data:
         <options>no_full_log</options>
         <description>Drop event: Office 365 Phishing and malware events from Exchange Online Protection and Microsoft Defender for Office 365 (excluding obsolete accounts).</description>
       </rule>
+
+      <rule id="100006" level="0">
+        <if_sid>91556</if_sid>
+        <field name="office365.PolicyAction" type="osregex">MoveToJmf</field>
+        <options>no_full_log</options>
+        <description>Drop if PolicyAction is MoveToJmf</description>
+      </rule>      
     </group>

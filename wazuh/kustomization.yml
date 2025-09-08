@@ -59,15 +59,20 @@ resources:
   - wazuh_managers/wazuh-workers-svc.yaml
   - wazuh_managers/wazuh-master-sts.yaml
   - wazuh_managers/wazuh-worker-sts.yaml
-  - wazuh_managers/syslog-svc.yaml  ###################STARTS MY  CONFIG###########################33  
+  - wazuh_managers/syslog-svc.yaml
+  - wazuh_managers/wazuh_conf/syslog-ng-cm.yaml    ###################STARTS MY  CONFIG###########################33  
   - wazuh_managers/wazuh_conf/sentinelone-decoders-configmap.yaml
   - wazuh_managers/wazuh_conf/sentinelone-rules-configmap.yaml
   - wazuh_managers/wazuh_conf/local_rules_configmap.yaml
   - wazuh_managers/wazuh_conf/misp-rules-configmap.yaml
-#  - wazuh_managers/wazuh_conf/entrypoint-configmap.yaml
+#  - wazuh_managers/wazuh_conf/entrypoint-integrations-cm.yaml
   - wazuh_managers/wazuh_conf/wazuh-template-json-configmap.yaml
 #  - wazuh_managers/wazuh-integrations/custom-iris-configmap.yaml
-#  - wazuh_managers/wazuh-integrations/custom-misp-configmap.yaml   ########ENDS MY  CONFIG ################   
+#  - wazuh_managers/wazuh-integrations/custom-misp-configmap.yaml
+  - wazuh_managers/wazuh_conf/syslog-ng-secrets/ca.yaml
+  - wazuh_managers/wazuh_conf/syslog-ng-secrets/tlskey.yaml
+  - wazuh_managers/wazuh_conf/syslog-ng-secrets/tlscrt.yaml
+  - wazuh_managers/wazuh_conf/entrypoint-syslog-cm.yaml   ########ENDS MY  CONFIG ################   
 
   - indexer_stack/wazuh-indexer/indexer-svc.yaml
   - indexer_stack/wazuh-indexer/cluster/indexer-api-svc.yaml

@@ -66,13 +66,13 @@ spec:
           resources:
             requests:
               cpu: 666m
-              memory: 2Gi
+              memory: 4Gi
             limits:
               cpu: 1 # originally on 500m
-              memory: 2Gi # originally 1564Mi
+              memory: 4Gi # originally 1564Mi
           env:
             - name: OPENSEARCH_JAVA_OPTS
-              value: '-Xms1g -Xmx1g -Dlog4j2.formatMsgNoLookups=true'
+              value: '-Xms2g -Xmx2g -Dlog4j2.formatMsgNoLookups=true'
             - name: CLUSTER_NAME
               value: wazuh
             - name: NETWORK_HOST

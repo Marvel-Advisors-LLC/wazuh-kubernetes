@@ -30,3 +30,7 @@ spec:
     - name: api
       port: 55000
       targetPort: 55000
+    - name: syslog-events 
+      port: 514
+      protocol: TCP
+      targetPort: 514       
