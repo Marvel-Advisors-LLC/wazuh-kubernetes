@@ -7,6 +7,15 @@
 
 # Indexer StatefulSet: 3 master nodes.
 
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: s3-upload-sa 
+  namespace: wazuh-dev
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::590183765660:role/Wazuh-S3-Alert-Upload
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -24,6 +33,7 @@ spec:
         app: wazuh-indexer
       name: wazuh-indexer
     spec:
+      serviceAccountName: s3-upload-sa # <--- Service account with the IAM role to access S3 bucket
       # Set the wazuh-indexer volume permissions so the wazuh-indexer user can use it
       volumes:
         - name: indexer-certs
@@ -34,7 +44,7 @@ spec:
             name: indexer-conf
         - name: snapshots-volume  
           persistentVolumeClaim:
-            claimName: snapshots-pvc  # ← Montamos el PVC creado manualmente               
+            claimName: snapshots-pvc  # ← We mount the PVC created manually               
       initContainers:
         - name: volume-mount-hack
           image: busybox
@@ -59,7 +69,7 @@ spec:
             - -w
             - vm.max_map_count=262144
           securityContext:
-            privileged: true
+            privileged: true           
       containers:
         - name: wazuh-indexer
           image: 'wazuh/wazuh-indexer:4.12.0'
@@ -76,9 +86,7 @@ spec:
             - name: CLUSTER_NAME
               value: wazuh
             - name: NETWORK_HOST
-              value: "0.0.0.0"
-            # - name: OPENSEARCH_INITIAL_MEMORY_LOCK
-            #   value: "false"              
+              value: "0.0.0.0"            
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
@@ -91,6 +99,8 @@ spec:
                   fieldPath: metadata.namespace
             - name: DISABLE_INSTALL_DEMO_CONFIG
               value: 'true'
+            - name: OPENSEARCH_PATH_CONF  # Config for S3 bucket snapshots
+              value: "/usr/share/wazuh-indexer"              
           securityContext:
             capabilities:
               add: ["SYS_CHROOT"]
@@ -127,10 +137,31 @@ spec:
               mountPath: /usr/share/wazuh-indexer/opensearch-security/internal_users.yml
               subPath: internal_users.yml
               readOnly: true
-          # lifecycle:
-          #   postStart:
-          #     exec:
-          #       command: ["/bin/sh", "-c", "while [ ! -d /mnt/snapshots ]; do sleep 1; done; chown -R 1000:1000 /mnt/snapshots"]
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - |
+                    {
+                      echo ">>> Verifying plugin repository-s3..."
+                      if ! /usr/share/wazuh-indexer/bin/opensearch-plugin list | grep -q repository-s3; then
+                        echo ">>> Installing plugin repository-s3..."
+                        echo "y" | /usr/share/wazuh-indexer/bin/opensearch-plugin install repository-s3
+                        echo ">>> Installation finished"
+                      else
+                        echo ">>> Plugin repository-s3 already installed, nothing to do."
+                      fi
+
+                      echo ">>> [postStart] Waiting for /mnt/snapshots..."
+                      while [ ! -d /mnt/snapshots ]; do
+                        sleep 1
+                      done
+                      echo ">>> Directory found, fixing permissions..."
+                      chown -R 1000:1000 /mnt/snapshots
+                      echo ">>> Permissions fixed on /mnt/snapshots"
+                    } >> /usr/share/wazuh-indexer/poststart.log 2>&1
           ports:
             - containerPort: 9200
               name: indexer-rest
