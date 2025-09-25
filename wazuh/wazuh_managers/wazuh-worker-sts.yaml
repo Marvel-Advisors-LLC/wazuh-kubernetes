@@ -27,7 +27,7 @@ spec:
         node-type: worker
         syslog-ng: "true"
       name: wazuh-manager-worker
-    spec:
+    spec:    
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:

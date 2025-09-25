@@ -27,7 +27,7 @@ spec:
         node-type: master
         syslog-ng: "true"
       name: wazuh-manager-master
-    spec:
+    spec:  
       volumes:  
         - name: custom-misp-script  #########START MY CONFIG##############
           configMap:
@@ -219,7 +219,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: m365-cred-secret
-                  key: CLIENT_SECRET                    
+                  key: CLIENT_SECRET                                      
             - name: FILEBEAT_SSL_VERIFICATION_MODE
               value: 'full'
             - name: SSL_CERTIFICATE_AUTHORITIES

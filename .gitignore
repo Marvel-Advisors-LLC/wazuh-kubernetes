@@ -14,6 +14,7 @@ wazuh/certs/indexer_cluster/*.srl
 /envs/eks/pvc-nfs.yaml
 /envs/eks/wazuh-indexer-legacy.yaml
 /wazuh/secrets/m365-cred-secret.yaml
+/wazuh/secrets/wazuh-s3-creds.yaml
 /wazuh/certs/tls/*.crt
 /wazuh/certs/tls/*.key
 /wazuh/certs/tls/*.srl
