@@ -135,7 +135,7 @@ In AWS IAM, create a new policy (e.g., `Wazuh-S3-Snapshot-Policy`) with the foll
     ]
 }
 ```    
-### 3. Create IAM User for Programmatic Access 
+### 3. Create IAM User with Programmatic Access 
 #### a) Go to IAM on AWS and click on users -> ceate a new user   
 ![If the image doesn't appears, it may be deleted from /images/create_user_1.png](images/create_user_1.png)  
 select a name and `DO NOT` select the "Provide user access to...", then hit next  
@@ -197,7 +197,38 @@ We do the configurations using the `command` of the indexer container (`indexer-
 ```
 ### Check everything it's  properly configured
 
+#### 1) Connect to wazuh indexer :  
 
+`kubectl exec -it wazuh-indexer-0 -n wazuh -- /bin/bash`  
+
+#### 2) Check if the keys are properly mounted:  
+```bash 
+bash-5.2$ /usr/share/wazuh-indexer/bin/opensearch-keystore list
+keystore.seed
+s3.client.default.access_key
+s3.client.default.secret_key
+bash-5.2$ 
+```
+you can't see the content of the keys, but you can try creating a snapshot repositorie, if you can create it then the keys are OK.  
+
+#### 3) Go to Wazuh - > Index Management -> Repositories and click on 'Create Repositorie'
+ ![If the image doesn't appears, it may be deleted from /images/snapshot-policy-creation.png](images/snapshot-policy-creation.png) 
+
+you need to put a repo name, your s3 bucket name and region AWS region (e.g us-east-1). Here's the code: 
+
+```json
+{
+    "type": "s3",
+    "settings": {
+        "bucket": "<YOUR-S3-BUCKET-NAME>",
+        "base_path": "wazuhsnapshots",
+        "region": "<YOUR-AWS-REGION>"
+    }
+}
+```
+Note: `base_path` is a subdirectory within your S3 bucket, you can name it however you want.
+
+#### 4) Create the Snapshot Policy
 ## Contribute
 
 If you want to contribute to our project please don't hesitate to send a pull request. You can also join our users [mailing list](https://groups.google.com/d/forum/wazuh) or the [Wazuh Slack community channel](https://wazuh.com/community/join-us-on-slack/) to ask questions and participate in discussions.
