@@ -233,20 +233,20 @@ In the same section (Index Managament) go to `Snapshots Policy` and click on cre
 
  ![If the image doesn't appears, it may be deleted from /images/snapshot-policy-creation.png](images/snapshot-policy-creation.png)  
 
- select a `Policy Name` and `Description. `Source and destination` select the indexes you want to use for your snapshots (you have to type it), e.g:  
+ select a `Policy Name` and `Description`. `Source and destination` select the indexes you want to use for your snapshots (you have to type it), e.g:  
  ``` bash
  wazuh-alerts-4.x-*
  ```  
 
  the destination will be the repo you just created on the previous step, or if you want you can create the repo right there clicking on the `Create repository` buttom at the right.  
- Next set the spanoshot frequency you need.  
+ Next set the snapshot frequency you need.  
 
  ![If the image doesn't appears, it may be deleted from /images/snapshot-policy-creation-2.png](images/snapshot-policy-creation-2.png)
 next click on `Specify retention conditions` and select the time you want to have those snapshots on S3 before deleting them forever. Finally click on `Create`.  
 
 #### 5) Restoring a snapshot  
 
-Go to `Snapshots`, select your snapshots and click on `restore`, then you'll need to select if you want to restore all the indexes or just a set of them. You'll need to have an account with snapshots permissions for this.
+Go to `Snapshots`, select your snapshots and click on `restore`, then you'll need to select if you want to restore all the indexes or just a set of them. You'll need to have an account with snapshots permissions for this step.
 ## Contribute
 
 If you want to contribute to our project please don't hesitate to send a pull request. You can also join our users [mailing list](https://groups.google.com/d/forum/wazuh) or the [Wazuh Slack community channel](https://wazuh.com/community/join-us-on-slack/) to ask questions and participate in discussions.
