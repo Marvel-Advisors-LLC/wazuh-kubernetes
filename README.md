@@ -89,9 +89,164 @@ To deploy a cluster on your local environment (like Minikube, Kind or Microk8s) 
             └── wazuh-worker-sts.yaml
 
   
-  
+## How to avoid breaking Wazuh when updating version 
+If you are going to update Wazuh, first make sure to create a snapshot of the indexes you have. You can follow the steps on how to create a snapshot [here](#wazuh-indexer-s3-snapshots-configuration).  
+Once you have your snapshot created, you need to create new PVC's and do not delete the ones you already have. We do this because could be the case that you  
+update Wazuh and Opensearch could be updated as well, so if the new version of Wazuh doesn't work and you need to go back to the previous version, the version of  
+Opensearch won't be downgraded to the previous one, and you cannot change it from the yaml's files, since Opensearch is managed by wazuh indexers, so you'll encounter yourself in a bittle of a trouble. For that reasons we update the version with new fresh PVC, if something goes wrong, we set up the previous version with the original PVC's which will have the previous version of Opensearch. Once said this, lets start.  
 
+### 1. Scale down the indexer and manager pods  
 
+```
+kubectl scale statefulset wazuh-indexer -n wazuh --replicas=0
+kubectl scale statefulset wazuh-manager-master -n wazuh --replicas=0
+kubectl scale statefulset wazuh-manager-worker -n wazuh --replicas=0
+``` 
+wait a few seconds until the pods are deleted, you can check if they already has been deleted with `kubectl get pods -n wazuh` you should see only the dashboard pod.  
+
+### 2. Delete the originals PVC's
+Delete the PVC's for the indexer and master, you can look the names using: 
+```bash
+$ kubectl get pvc -n wazuh
+NAME                                          STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS    VOLUMEATTRIBUTESCLASS   AGE
+snapshots-pvc                                 Bound    snapshots-pv                               50Gi       RWX                            <unset>                 53d
+wazuh-indexer-wazuh-indexer-0                 Bound    pvc-95aa80a1-b4d4-47cc-bbb3-f865881e8de4   300Gi      RWO            wazuh-storage   <unset>                 40m
+wazuh-indexer-wazuh-indexer-1                 Bound    pvc-ddeeaa68-8ef3-4b27-a324-63837badff29   300Gi      RWO            wazuh-storage   <unset>                 39m
+wazuh-manager-master-wazuh-manager-master-0   Bound    pvc-f422dc1c-2401-4d7a-b02c-1eb269ee347b   50Gi       RWO            wazuh-storage   <unset>                 2d
+wazuh-manager-worker-wazuh-manager-worker-0   Bound    pvc-79790861-2177-47d5-86c7-5da07792a5f5   50Gi       RWO            wazuh-storage   <unset>                 2d
+
+```  
+Then delete the ones asociated with the indexer and manager, you can do: 
+```bash
+kubectl delete pvc wazuh-indexer-wazuh-indexer-0 wazuh-indexer-wazuh-indexer-1 wazuh-manager-master-wazuh-manager-master-0 wazuh-manager-worker-wazuh-manager-worker-0 -n wazuh
+```
+once deleted, you can check again with `kubectl get pvc -n wazuh`, they should be gone, but don't worry, you didn't deleted the Persistance Volumes, just the Claims wazuh was using for those PV's.  
+
+### 3. Patch the original PV's 
+Now you need to change the storage-class from the original PV's in order to let Kubernetes create a new ones, if Kubernetes looks and found that there are the exact same PV's he need for the Statefull sets wazuh indexer and manager needs, will use the original ones again since they will be Avaibable probably. So we do the following:  
+```bash
+$ kubectl get pv
+NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM                                               STORAGECLASS    VOLUMEATTRIBUTESCLASS   REASON   AGE
+pvc-10bf2193-7c60-42b6-a5fd-bf582ace15f3   5Gi        RWO            Delete           Bound       shuffle/backend-apps-claim                          shuffle-data    <unset>                          98d
+pvc-14745f27-9470-4a3b-b097-87f186c24347   30Gi       RWO            Delete           Bound       iris-web/iris-worker-claim                          iris-sc         <unset>                          183d
+pvc-3b819a85-d87c-46df-b764-89a06c020027   30Gi       RWO            Delete           Bound       iris-web/iris-app-claim                             iris-sc         <unset>                          183d
+pvc-5191ab26-0566-4b4e-a78a-8e49755b2f7f   30Gi       RWO            Delete           Bound       shuffle/opensearch-claim0                           shuffle-data    <unset>                          98d
+pvc-79790861-2177-47d5-86c7-5da07792a5f5   50Gi       RWO            Retain           Released    wazuh/wazuh-manager-worker-wazuh-manager-worker-0   wazuh-storage   <unset>                          302d
+pvc-95aa80a1-b4d4-47cc-bbb3-f865881e8de4   300Gi      RWO            Retain           Released    wazuh/wazuh-indexer-wazuh-indexer-0                 wazuh-storage   <unset>                          47h
+pvc-b8795ae3-bd41-4cf7-9e29-3020e95f2f76   30Gi       RWO            Delete           Bound       iris-web/iris-psql-claim                            iris-sc         <unset>                          171d
+pvc-d900e964-9e82-4520-b5e8-4c18bb56d6c7   5Gi        RWO            Delete           Bound       shuffle/backend-files-claim                         shuffle-data    <unset>                          98d
+pvc-ddeeaa68-8ef3-4b27-a324-63837badff29   300Gi      RWO            Retain           Released    wazuh/wazuh-indexer-wazuh-indexer-1                 wazuh-storage   <unset>                          47h
+pvc-f422dc1c-2401-4d7a-b02c-1eb269ee347b   50Gi       RWO            Retain           Released    wazuh/wazuh-manager-master-wazuh-manager-master-0   wazuh-storage   <unset>                          302d
+snapshots-pv                               50Gi       RWX            Retain           Bound       wazuh/snapshots-pvc                                                 <unset>                          65d
+``` 
+you'll find very easy which PV's are the original, they has the `STATUS` set on `Released`, those are the ones we need to changes his `STORAGECLASS` from `wazuh-storage` to something different, could be `manual-backup`. So we are gonna do the following:  
+```bash
+ kubectl patch pv <INDEXER-0-PV-NAME> <INDEXER-0-PV-NAME> <MASTER-PV-NAME> <WORKER-PV-NAME> -p '{"spec":{"storageClassName":"manual-backup"}}'
+```
+once done, we can check again with `kubectl get pv` and now the `STORAGECLASS` should be `manual-backup`.  
+
+### 3. Scale up manager and indexer Statefull set  
+
+Now we can create the new PV's and PVC's, we just need to run the following commands:  
+```bash
+kubectl scale statefulset wazuh-indexer -n wazuh --replicas=2
+kubectl scale statefulset wazuh-manager-master -n wazuh --replicas=1
+kubectl scale statefulset wazuh-manager-worker -n wazuh --replicas=1
+```
+wait a few moments and check wazuh is up and running, once wazuh is running, you can update wazuh and see if it's working. If everything is okay, then you can connect the originals PV's again. If wazuh new version is broken, and you want to go back to the previous version, the following steps will be the same.  
+
+### 4. Restore the PV's and PVC's  
+First we need to redo [step 1](#1-scale-down-the-indexer-and-manager-pods).  
+
+Then we are going to delete the new PVC's  and PV's using: 
+```bash
+kubectl delete pvc wazuh/wazuh-indexer-wazuh-indexer-1 wazuh/wazuh-indexer-wazuh-indexer-0 wazuh/wazuh-manager-worker-wazuh-manager-worker-0 wazuh/wazuh-manager-worker-wazuh-manager-master-0 -n wazuh 
+
+kubectl delete pv <new-pvs-names> 
+``` 
+And finally we are going to make the `STATUS` of the original PV's go from `Released` to `Avaibable`, this way when we scale up the pods, K8s will use this PV's for the  
+wazuh indexer and master, since they fit the description of PV's and PVC declared on the Statefull sets. So we need to edit the PV's first, like this:  
+
+```bash
+kubectl edit pv pvc-95aa80a1-b4d4-47cc-bbb3-f865881e8de4
+```
+It'll look like this: 
+
+```yaml
+# Please edit the object below. Lines beginning with a '#' will be ignored,
+# and an empty file will abort the edit. If an error occurs while saving this file will be
+# reopened with the relevant failures.
+#
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  annotations:
+    pv.kubernetes.io/bound-by-controller: "yes"
+    pv.kubernetes.io/migrated-to: ebs.csi.aws.com
+    pv.kubernetes.io/provisioned-by: kubernetes.io/aws-ebs
+    volume.kubernetes.io/provisioner-deletion-secret-name: ""
+    volume.kubernetes.io/provisioner-deletion-secret-namespace: ""
+  creationTimestamp: "2025-10-01T14:10:52Z"
+  finalizers:
+  - kubernetes.io/pv-protection
+  - external-attacher/ebs-csi-aws-com
+  labels:
+    topology.kubernetes.io/region: us-east-1
+    topology.kubernetes.io/zone: us-east-1a
+  name: pvc-95aa80a1-b4d4-47cc-bbb3-f865881e8de4
+  resourceVersion: "169626996"
+  uid: fd73ac26-2711-4055-af93-3db4855ef815
+spec:
+  accessModes:
+  - ReadWriteOnce
+  awsElasticBlockStore:
+    fsType: ext4
+    volumeID: vol-0400063ec92e7bc74
+  capacity:
+    storage: 300Gi
+  claimRef:                ####################################DELETE FROM THIS LINE#####
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: wazuh-indexer-wazuh-indexer-0
+    namespace: wazuh
+    resourceVersion: "169626989"
+    uid: b5e8edb7-263a-4c05-973d-aad0f01b5ae1 #################TILL HERE#################
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values:
+          - us-east-1a
+        - key: topology.kubernetes.io/region
+          operator: In
+          values:
+          - us-east-1
+  persistentVolumeReclaimPolicy: Retain
+
+``` 
+we are going to delete the whole `claimRef:` section, as marked above with the comments. Once done, save the file and exit, now when you yun a `kubectl get pv` you  
+should see the original PV's `STATUS` = Avaibable.  
+
+Now for finishing we scale up again: 
+
+```bash
+kubectl scale statefulset wazuh-indexer -n wazuh --replicas=2
+kubectl scale statefulset wazuh-manager-master -n wazuh --replicas=1
+kubectl scale statefulset wazuh-manager-worker -n wazuh --replicas=1
+``` 
+
+Wait a few minutes and check wazuh's working properly again and with the correct version, you can check the version connecting to the master pods and running:  
+```bash
+ /var/ossec/bin/wazuh-control info
+``` 
+Expected output: 
+```bash
+WAZUH_VERSION="v4.12.0"
+WAZUH_REVISION="rc1"
+WAZUH_TYPE="server"
+```
 ## Wazuh Indexer S3 Snapshots Configuration
 
 This section documents the configuration steps required to enable Wazuh Indexer (based on OpenSearch) to create and store snapshots in an AWS S3 bucket.
