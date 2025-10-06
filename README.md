@@ -89,11 +89,11 @@ To deploy a cluster on your local environment (like Minikube, Kind or Microk8s) 
             └── wazuh-worker-sts.yaml
 
   
-## How to avoid breaking Wazuh when updating version 
-If you are going to update Wazuh, first make sure to create a snapshot of the indexes you have. You can follow the steps on how to create a snapshot [here](#wazuh-indexer-s3-snapshots-configuration).  
-Once you have your snapshot created, you need to create new PVC's and do not delete the ones you already have. We do this because could be the case that you  
-update Wazuh and Opensearch could be updated as well, so if the new version of Wazuh doesn't work and you need to go back to the previous version, the version of  
-Opensearch won't be downgraded to the previous one, and you cannot change it from the yaml's files, since Opensearch is managed by wazuh indexers, so you'll encounter yourself in a bittle of a trouble. For that reasons we update the version with new fresh PVC, if something goes wrong, we set up the previous version with the original PVC's which will have the previous version of Opensearch. Once said this, lets start.  
+Before updating Wazuh, make sure to create a snapshot of your indexes. You can follow the steps in the [Wazuh Indexer S3 Snapshots Configuration](#wazuh-indexer-s3-snapshots-configuration) section.
+
+Once your snapshot is created, you should provision new PVCs without deleting the existing ones. This approach is recommended because updating Wazuh may also upgrade OpenSearch. If the new Wazuh version fails and you need to revert, OpenSearch will not automatically downgrade, and you cannot change its version via YAML files since it is managed by the Wazuh indexer. This situation can be problematic.
+
+By updating Wazuh with fresh PVCs, you ensure that if something goes wrong, you can restore the previous version using the original PVCs, which contain the compatible OpenSearch data. With this in mind, let's proceed with the update steps.
 
 ### 1. Scale down the indexer and manager pods  
 
@@ -123,7 +123,7 @@ kubectl delete pvc wazuh-indexer-wazuh-indexer-0 wazuh-indexer-wazuh-indexer-1 w
 once deleted, you can check again with `kubectl get pvc -n wazuh`, they should be gone, but don't worry, you didn't deleted the Persistance Volumes, just the Claims wazuh was using for those PV's.  
 
 ### 3. Patch the original PV's 
-Now you need to change the storage-class from the original PV's in order to let Kubernetes create a new ones, if Kubernetes looks and found that there are the exact same PV's he need for the Statefull sets wazuh indexer and manager needs, will use the original ones again since they will be Avaibable probably. So we do the following:  
+You need to change the storage class of the original PVs to allow Kubernetes to create new ones. If Kubernetes finds PVs that exactly match the requirements of the StatefulSets for the Wazuh indexer and manager, it will reuse the original PVs once they become Available. To prevent this and ensure new PVs are created, follow these steps:
 ```bash
 $ kubectl get pv
 NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM                                               STORAGECLASS    VOLUMEATTRIBUTESCLASS   REASON   AGE
@@ -139,7 +139,7 @@ pvc-ddeeaa68-8ef3-4b27-a324-63837badff29   300Gi      RWO            Retain     
 pvc-f422dc1c-2401-4d7a-b02c-1eb269ee347b   50Gi       RWO            Retain           Released    wazuh/wazuh-manager-master-wazuh-manager-master-0   wazuh-storage   <unset>                          302d
 snapshots-pv                               50Gi       RWX            Retain           Bound       wazuh/snapshots-pvc                                                 <unset>                          65d
 ``` 
-you'll find very easy which PV's are the original, they has the `STATUS` set on `Released`, those are the ones we need to changes his `STORAGECLASS` from `wazuh-storage` to something different, could be `manual-backup`. So we are gonna do the following:  
+You'll easily identify the original PVs by their `STATUS`, which will be set to `Released`. These are the ones that need their `STORAGECLASS` changed from `wazuh-storage` to a different value, such as `manual-backup`. To do this, follow these steps:
 ```bash
  kubectl patch pv <INDEXER-0-PV-NAME> <INDEXER-0-PV-NAME> <MASTER-PV-NAME> <WORKER-PV-NAME> -p '{"spec":{"storageClassName":"manual-backup"}}'
 ```
@@ -164,11 +164,10 @@ kubectl delete pvc wazuh/wazuh-indexer-wazuh-indexer-1 wazuh/wazuh-indexer-wazuh
 
 kubectl delete pv <new-pvs-names> 
 ``` 
-And finally we are going to make the `STATUS` of the original PV's go from `Released` to `Avaibable`, this way when we scale up the pods, K8s will use this PV's for the  
-wazuh indexer and master, since they fit the description of PV's and PVC declared on the Statefull sets. So we need to edit the PV's first, like this:  
+Finally, we need to change the `STATUS` of the original PVs from `Released` to `Available`. This ensures that when we scale up the pods, Kubernetes will automatically use these PVs for the Wazuh indexer and manager, as they match the requirements specified in the StatefulSets. To do this, edit each PV as follows: 
 
 ```bash
-kubectl edit pv pvc-95aa80a1-b4d4-47cc-bbb3-f865881e8de4
+kubectl edit pv <PV-NAME>
 ```
 It'll look like this: 
 
