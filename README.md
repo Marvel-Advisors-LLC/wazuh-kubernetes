@@ -15,6 +15,61 @@ Deploy a Wazuh cluster with a basic indexer and dashboard stack on Kubernetes.
 
 ## Documentation
 
+## Things you need to configure on this repo before deploying it 
+
+#### 1) See the domain, SSL cert config [here](#configuring-a-domain-and-ssl-cert-and-for-wazuh-dashboard) (ommit step 4 for now)  
+
+#### 2) Create the privates certs stored on ../wazuh-kubernetes/wazuh/certs/ for both dashboard_http and indexer_cluster  
+go within those two folders and run `./generate_certs.sh`  
+
+#### 3) Configure all the integrations you'll use on the master.conf and worker.conf  
+`WARNING`: the two files will have the same config, but do not copy the whole document content of one within the other, they have speciall sections for each one, if you do this you'll break wazuh.
+#### 4) Apply the yaml's files using the kustomization   
+Check you're on the correct path:  
+```bash
+$ pwd 
+/your-folders-path/kubernetes/wazuh-kubernetes
+
+```
+Then apply the yaml's: 
+```bash
+kubectl apply -k envs/eks/
+```
+
+## Ajust wazuh resources  
+
+If you want to change the default values for the wazuh resources, you can do it from these files:  
+
+#### 1) Wazuh indexer:  
+
+```
+wazuh-kubernetes/envs/eks/indexer-resources.yaml
+wazuh-kubernetes/wazuh/indexer_stack/wazuh-indexer/cluster/indexer-sts.yaml
+``` 
+make sure these file have the exact same config for the requested resources.  
+
+#### 2) Wazuh manager:  
+```
+master:
+wazuh-kubernetes/envs/eks/wazuh-master-resources.yaml
+wazuh-kubernetes/wazuh/wazuh_managers/wazuh-master-sts.yaml
+
+
+worker:
+wazuh-kubernetes/envs/eks/wazuh-worker-resources.yaml
+wazuh-kubernetes/wazuh/wazuh_managers/wazuh-worker-sts.yaml
+```  
+make sure these file have the exact same config for the requested resources.    
+
+#### 3) Wazuh dashboard: 
+
+```
+wazuh-kubernetes/envs/eks/dashboard-resources.yaml
+wazuh-kubernetes/wazuh/indexer_stack/wazuh-dashboard/dashboard-deploy.yaml
+
+```  
+make sure these file have the exact same config for the requested resources.  
+
 ## Amazon EKS development
 
 To deploy a cluster on Amazon EKS cluster read the instructions on [instructions.md](instructions.md).
@@ -42,6 +97,8 @@ To deploy a cluster on your local environment (like Minikube, Kind or Microk8s) 
     │       ├── kustomization.yml
     │       ├── storage-class.yaml
     │       └── wazuh-resources.yaml
+    |
+    ├── images
     ├── instructions.md
     ├── LICENSE
     ├── local-environment.md
@@ -62,6 +119,7 @@ To deploy a cluster on your local environment (like Minikube, Kind or Microk8s) 
         │   │   ├── dashboard_conf
         │   │   │   └── opensearch_dashboards.yml
         │   │   ├── dashboard-deploy.yaml
+        |   |   ├── dashboard-ingress.yaml
         │   │   └── dashboard-svc.yaml
         │   └── wazuh-indexer
         │       ├── cluster
@@ -69,6 +127,7 @@ To deploy a cluster on your local environment (like Minikube, Kind or Microk8s) 
         │       │   └── indexer-sts.yaml
         │       ├── indexer_conf
         │       │   ├── internal_users.yml
+        |       |   ├── snapshot_storage.yaml
         │       │   └── opensearch.yml
         │       └── indexer-svc.yaml
         ├── kustomization.yml
@@ -78,15 +137,26 @@ To deploy a cluster on your local environment (like Minikube, Kind or Microk8s) 
         │   ├── wazuh-api-cred-secret.yaml
         │   ├── wazuh-authd-pass-secret.yaml
         │   └── wazuh-cluster-key-secret.yaml
-        └── wazuh_managers
-            ├── wazuh-cluster-svc.yaml
-            ├── wazuh_conf
-            │   ├── master.conf
-            │   └── worker.conf
-            ├── wazuh-master-sts.yaml
-            ├── wazuh-master-svc.yaml
-            ├── wazuh-workers-svc.yaml
-            └── wazuh-worker-sts.yaml
+        ├── wazuh_managers
+        |    ├── wazuh-cluster-svc.yaml
+        |    ├── wazuh_conf
+        |    │   ├── entrypoint-integrations-cm.yaml
+        |    |   ├── entrypoint-syslog-cm.yaml
+        |    |   ├── filebeat.yml
+        |    |   ├── local_rules_configmap.yaml
+        |    |   ├── master.conf
+        |    |   ├── misp-rules-configmap.yaml
+        |    |   ├── sentinelone-rules-configmap.yaml
+        |    |   ├── sentinelone-rules-configmap.yaml
+        |    |   ├── syslog-ng-cm.yaml
+        |    |   ├── wazuh-template-json-configmap.yaml
+        |    │   └── worker.conf
+        |    └── wazuh-integrations
+        |        ├── wazuh-master-sts.yaml
+        |        ├── wazuh-master-svc.yaml
+        |        ├── wazuh-workers-svc.yaml
+        |        └── wazuh-worker-sts.yaml
+        └───kustomization.yml     
 
   
 Before updating Wazuh, make sure to create a snapshot of your indexes. You can follow the steps in the [Wazuh Indexer S3 Snapshots Configuration](#wazuh-indexer-s3-snapshots-configuration) section.
@@ -225,7 +295,7 @@ spec:
   persistentVolumeReclaimPolicy: Retain
 
 ``` 
-we are going to delete the whole `claimRef:` section, as marked above with the comments. Once done, save the file and exit, now when you yun a `kubectl get pv` you  
+we are going to delete the whole `claimRef:` section, as marked above with the comments for all the original PV's of Wazuh indexer and master. Once done, save the file and exit, now when you run a `kubectl get pv` you  
 should see the original PV's `STATUS` = Avaibable.  
 
 Now for finishing we scale up again: 
@@ -400,7 +470,58 @@ next click on `Specify retention conditions` and select the time you want to hav
 
 #### 5) Restoring a snapshot  
 
-Go to `Snapshots`, select your snapshots and click on `restore`, then you'll need to select if you want to restore all the indexes or just a set of them. You'll need to have an account with snapshots permissions for this step.
+Go to `Snapshots`, select your snapshots and click on `restore`, then you'll need to select if you want to restore all the indexes or just a set of them. You'll need to have an account with snapshots permissions for this step.  
+
+## Configuring a domain and SSL cert and for wazuh dashboard  
+We are going to do it using route53, external plugin, an ALB and ingress.   
+
+#### 1) Configure and set a domain on route53. 
+For this you need to create a hosted zone, once done you need to set the external dns-plugin.  
+
+#### 2) Install the dns external plugin 
+Once done, you need to configure this section of the `external-dns-setup.yaml` (you can get this file on the repo [`external-dns-kubernetes`](https://github.com/Marvel-Advisors-LLC/external-dns-plugin))  
+
+```yaml
+      containers:
+        - name: external-dns
+          image: registry.k8s.io/external-dns/external-dns:v0.15.1
+          args:
+            - --source=service
+            - --source=ingress
+            - --domain-filter=<HOSTED-ZONE-YOU-CREATED> # will make ExternalDNS see only the hosted zones matching provided domain, omit to process all available hosted zones
+            - --provider=aws
+            - --policy=upsert-only # would prevent ExternalDNS from deleting any records, omit to enable full synchronization
+            - --aws-zone-type=public # only look at public hosted zones (valid values are public, private or no value for both)
+            - --registry=txt
+            - --txt-owner-id=external-dns
+            #- --log-level=debug
+          env:
+            - name: AWS_DEFAULT_REGION
+              value: us-east-1 # change to region where EKS is installed
+```
+once done, apply the yaml and check everything is running properly.  
+
+#### 3) Create the SSL cert.  
+Go to AWS-> Certificate manager, and click on Request-> Request a public certificate.  
+Use the following config:  
+```yaml
+- Fully qualified domain name: *.<HOSTED-ZONE-YOU-CREATED>  #This will apply the cert on each sub domain of your hosted zone
+- Validation method: DNS validation - recommended 
+```
+
+Then click on request and validate the DNS using route53.   
+
+#### 4) Create the ingress object  
+
+Configure the file `wazuh-kubernetes/wazuh/indexer-stack/wazuh-dashboard/dashboard-ingress.yaml` with the domain name you  
+ want (must be something like `my-domain.<HOSTED-ZONE-YOU-CREATED>`) and ssl cert arn.  
+Then run: 
+```bash
+$ pwd 
+/your-pc-path/kubernetes/wazuh-kubernetes
+$ kubectl apply -k envs/eks/
+```
+If everything is okay, you should be able to connect via https to your wazuh dashboard on you new domain name.
 ## Contribute
 
 If you want to contribute to our project please don't hesitate to send a pull request. You can also join our users [mailing list](https://groups.google.com/d/forum/wazuh) or the [Wazuh Slack community channel](https://wazuh.com/community/join-us-on-slack/) to ask questions and participate in discussions.
