@@ -20,6 +20,7 @@ wazuh/certs/indexer_cluster/*.srl
 /wazuh/certs/tls/*.srl
 /wazuh/certs/tls/*.csr
 /wazuh/wazuh_managers/wazuh_conf/syslog-ng-secrets
+/wazuh/cron_job/secrets
 *.crt
 *.key
 *.srl

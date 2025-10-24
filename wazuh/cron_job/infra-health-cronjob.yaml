@@ -1,0 +1,118 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: wazuh-infra-healthcheck
+  namespace: wazuh
+spec:
+  schedule: "*/5 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: healthcheck
+            image: alpine/curl:latest
+            env:
+              - name: CHAT_WEBHOOK_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: google-chat-webhook
+                    key: url
+              - name: WAZUH_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: wazuh-api-credentials
+                    key: user
+              - name: WAZUH_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: wazuh-api-credentials
+                    key: password
+            command:
+              - /bin/sh
+              - -c
+              - |
+                set -euo pipefail
+                apk add --no-cache curl jq
+
+                echo "Authenticating with Wazuh API..."
+                TOKEN=$(curl -sk -u "$WAZUH_USER:$WAZUH_PASS" -X POST "https://wazuh:55000/security/user/authenticate?raw=true")
+
+                if [ -z "$TOKEN" ]; then
+                  echo "🚨 Authentication failed — could not get token."
+                  curl -s -X POST -H 'Content-Type: application/json' \
+                    --data "{\"text\":\"🚨 *Wazuh Infra Healthcheck:* Authentication failed — could not get token.\"}" \
+                    "$CHAT_WEBHOOK_URL"
+                  exit 1
+                fi
+
+                echo "✅ Got token, running Wazuh API health checks..."
+
+                ENDPOINTS="
+                /cluster/status
+                /manager/status
+                /cluster/healthcheck
+                /cluster/local/info
+                /cluster/configuration/validation
+                /manager/configuration/validation
+                "
+
+                failed=0
+                failed_services=""
+
+                for ep in $ENDPOINTS; do
+                  echo "→ Checking $ep"
+                  response_file=$(mktemp)
+                  http_code=$(curl -sk -o "$response_file" -w "%{http_code}" -X GET "https://wazuh:55000$ep" -H "Authorization: Bearer $TOKEN" --max-time 10)
+                  
+                  if [ "$http_code" != "200" ]; then
+                    echo "❌ Endpoint $ep HTTP error: $http_code"
+                    failed=1
+                    failed_services="$failed_services\n*Endpoint:* $ep\n*HTTP Code:* $http_code\n"
+                    rm -f "$response_file"
+                    continue
+                  fi
+
+                  if error_val=$(jq -r '.error' "$response_file" 2>/dev/null); then
+                    if [ "$error_val" = "0" ]; then
+                      echo "✅ Endpoint $ep healthy (error=$error_val)"
+                    else
+                      echo "❌ Endpoint $ep failed (error=$error_val)"
+                      failed=1
+                      message=$(jq -r '.message // "No message"' "$response_file" 2>/dev/null)
+                      failed_services="$failed_services\n*Endpoint:* $ep\n*Error Code:* $error_val\n*Message:* $message\n"
+                    fi
+                  else
+                    echo "❌ Endpoint $ep - Invalid JSON response"
+                    failed=1
+                    failed_services="$failed_services\n*Endpoint:* $ep\n*Response:* Invalid JSON\n"
+                  fi
+                  rm -f "$response_file"
+                done
+
+                echo "Checking Wazuh Dashboard..."
+                dash_http_code=$(curl -sk -o /dev/null -w "%{http_code}" http://dashboard.wazuh.svc.cluster.local --max-time 10)
+
+                if [ "$dash_http_code" = "302" ] || [ "$dash_http_code" = "200" ]; then
+                  echo "✅ Dashboard is reachable (HTTP $dash_http_code)"
+                else
+                  echo "❌ Dashboard unreachable (HTTP $dash_http_code)"
+                  failed=1
+                  failed_services="$failed_services\n*Service:* Wazuh Dashboard\n*HTTP Code:* $dash_http_code\n"
+                fi
+
+                # Final notification
+                if [ $failed -eq 1 ]; then
+                  echo "🚨 Sending alert to Google Chat..."
+                  curl -s -X POST -H 'Content-Type: application/json' \
+                    --data "{\"text\":\"🚨 *Wazuh Infra Healthcheck Alert:*\n$failed_services\"}" \
+                    "$CHAT_WEBHOOK_URL"
+                else
+                  echo "✅ All Wazuh components healthy."
+                  curl -s -X POST -H 'Content-Type: application/json' \
+                    --data "{\"text\":\"✅ *Wazuh Infra Healthcheck:* All endpoints and dashboard healthy.\"}" \
+                    "$CHAT_WEBHOOK_URL"
+                fi
+
+                echo "Healthcheck completed."
+          restartPolicy: OnFailure

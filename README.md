@@ -156,8 +156,10 @@ To deploy a cluster on your local environment (like Minikube, Kind or Microk8s) 
         |        ├── wazuh-master-svc.yaml
         |        ├── wazuh-workers-svc.yaml
         |        └── wazuh-worker-sts.yaml
-        └───kustomization.yml     
+        └───kustomization.yml   
 
+  
+## How to safely update wazuh
   
 Before updating Wazuh, make sure to create a snapshot of your indexes. You can follow the steps in the [Wazuh Indexer S3 Snapshots Configuration](#wazuh-indexer-s3-snapshots-configuration) section.
 
@@ -225,7 +227,18 @@ kubectl scale statefulset wazuh-manager-worker -n wazuh --replicas=1
 ```
 wait a few moments and check wazuh is up and running, once wazuh is running, you can update wazuh and see if it's working. If everything is okay, then you can connect the originals PV's again. If wazuh new version is broken, and you want to go back to the previous version, the following steps will be the same.  
 
-### 4. Restore the PV's and PVC's  
+### 4.  We need to patch again the PV's to the original StorageClass  
+
+Run the same command you runned on step 2 but this time use the wazuh storage class name:  
+```bash
+ kubectl patch pv <INDEXER-0-PV-NAME> <INDEXER-0-PV-NAME> <MASTER-PV-NAME> <WORKER-PV-NAME> -p '{"spec":{"storageClassName":"wazuh-storage"}}'
+```
+Check the patch was applied properly:   
+```bash
+kubectl get pv
+``` 
+you should see now the originals PV's with the `STORAGECLASS` column on `wazuh-storage`
+### 5. Restore the PV's and PVC's  
 First we need to redo [step 1](#1-scale-down-the-indexer-and-manager-pods).  
 
 Then we are going to delete the new PVC's  and PV's using: 
@@ -380,6 +393,24 @@ then hit create, and copy those credentials, you'll need them on the next step.
 We do the configurations using the `command` of the indexer container (`indexer-sts.yaml`):
 
 ```yaml
+            #Add the following envs
+            - name: OPENSEARCH_PATH_CONF  # Config for S3 bucket snapshots
+              value: "/usr/share/wazuh-indexer"     
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: wazuh-s3-creds
+                  key: access_key_id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: wazuh-s3-creds
+                  key: secret_access_key    
+
+
+```
+
+```yaml
           command:  #Install the S3 plugin if not installed yet, then start normally
             - sh
             - -c
@@ -432,6 +463,29 @@ keystore.seed
 s3.client.default.access_key
 s3.client.default.secret_key
 bash-5.2$ 
+
+
+#Check the s3 plugin is installed: 
+bash-5.2$ /usr/share/wazuh-indexer/bin/opensearch-plugin list  
+opensearch-alerting
+opensearch-anomaly-detection
+opensearch-asynchronous-search
+opensearch-cross-cluster-replication
+opensearch-geospatial
+opensearch-index-management
+opensearch-job-scheduler
+opensearch-knn
+opensearch-ml
+opensearch-neural-search
+opensearch-notifications
+opensearch-notifications-core
+opensearch-observability
+opensearch-performance-analyzer
+opensearch-reports-scheduler
+opensearch-security
+opensearch-sql
+repository-s3  #HERE YOU SHOULD SEE THE S3 PLUGIN
+
 ```
 you can't see the content of the keys, but you can try creating a snapshot repositorie, if you can create it then the keys are OK.  
 

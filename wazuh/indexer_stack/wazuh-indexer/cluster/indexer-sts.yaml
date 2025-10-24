@@ -24,8 +24,6 @@ spec:
         app: wazuh-indexer
       name: wazuh-indexer
     spec:
-      serviceAccountName: s3-upload-sa # <--- Service account with the IAM role to access S3 bucket
-      # Set the wazuh-indexer volume permissions so the wazuh-indexer user can use it
       volumes:
         - name: indexer-certs
           secret:
