@@ -1,0 +1,143 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: wazuh-indexer-healthcheck
+  namespace: wazuh
+spec:
+  schedule: "0 7 * * * "  # Every day at 07:00 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: indexer-healthcheck
+            image: alpine/curl:latest
+            env:
+              - name: CHAT_WEBHOOK_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: google-chat-webhook
+                    key: url
+              - name: INDEXER_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: indexer-cred
+                    key: username
+              - name: INDEXER_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: indexer-cred
+                    key: password
+            command:
+              - /bin/sh
+              - -c
+              - |
+                set -euo pipefail
+                apk add --no-cache curl jq bc >/dev/null
+
+                failed=0
+                failed_services=""
+                failed_indices=""
+
+                echo "✅ Checking Indexer cluster health..."
+                health=$(curl -sk -u "$INDEXER_USER:$INDEXER_PASS" "https://indexer:9200/_cat/health?format=json")
+                status=$(echo "$health" | jq -r '.[0].status // empty')
+
+                if [ -z "$status" ]; then
+                  echo "❌ Could not retrieve cluster health status"
+                  failed=1
+                  failed_services="$failed_services\n*Service:* Indexer Cluster Health\n*Status:* unknown\n"
+                elif [ "$status" != "green" ]; then
+                  echo "❌ Cluster health not green: $status"
+                  failed=1
+                  failed_services="$failed_services\n*Service:* Indexer Cluster Health\n*Status:* $status\n"
+                else
+                  echo "✅ Cluster health is green"
+                fi
+
+                echo "✅ Checking disk usage per node..."
+                allocation=$(curl -sk -u "$INDEXER_USER:$INDEXER_PASS" "https://indexer:9200/_cat/allocation?format=json")
+
+                for node in $(echo "$allocation" | jq -c '.[]'); do
+                  node_name=$(echo "$node" | jq -r '.node')
+                  if [ "$node_name" = "UNASSIGNED" ]; then
+                    echo "⚠️ Skipping node UNASSIGNED"
+                    continue
+                  fi
+
+                  disk_used=$(echo "$node" | jq -r '.["disk.used"] // empty' | sed 's/gb//i' | tr -d ' ')
+                  disk_total=$(echo "$node" | jq -r '.["disk.total"] // empty' | sed 's/gb//i' | tr -d ' ')
+
+                  if [ -z "$disk_used" ] || [ -z "$disk_total" ] || [ "$disk_total" = "0" ]; then
+                    echo "⚠️ Skipping node $node_name (invalid disk data)"
+                    continue
+                  fi
+
+                  percent=$(echo "scale=2; ($disk_used/$disk_total)*100" | bc)
+
+                  if [ "$(echo "$percent > 50" | bc -l)" -eq 1 ]; then
+                    echo "❌ Node $node_name disk usage too high: $percent%"
+                    failed=1
+                    failed_services="$failed_services\n*Service:* Indexer Node Disk\n*Node:* $node_name\n*Usage:* $percent%\n"
+                  else
+                    echo "✅ Node $node_name disk usage OK: $percent%"
+                  fi
+                done
+
+                echo "✅ Checking indices health..."
+                indices=$(curl -sk -u "$INDEXER_USER:$INDEXER_PASS" "https://indexer:9200/_cat/indices?format=json" || true)
+
+                if [ -z "$indices" ]; then
+                  echo "❌ Could not retrieve indices list"
+                  failed_indices="*Error:* cannot fetch indices list"
+                  failed=1
+                else
+                  issues=$(echo "$indices" | jq -r '.[] | select(.health != "green") | "\(.index) \(.health)"' || true)
+                  if [ -n "$issues" ]; then
+                    while IFS= read -r line; do
+                      [ -z "$line" ] && continue
+                      set -- $line
+                      idx_name=$1
+                      idx_health=$2
+                      echo "❌ Index $idx_name health: $idx_health"
+                      failed=1
+                      failed_indices="${failed_indices}\n*Index:* $idx_name\n*Health:* $idx_health"
+                    done <<EOF
+                $issues
+                EOF
+                  else
+                    echo "✅ All indices health is green"
+                  fi
+                fi
+
+
+                echo "✅ Checking repositories..."
+                repos=$(curl -sk -u "$INDEXER_USER:$INDEXER_PASS" "https://indexer:9200/_cat/repositories?format=json" || true)
+                repo_count=$(echo "$repos" | jq 'length')
+
+                if [ "$repo_count" -eq 0 ]; then
+                  echo "❌ No repositories found in Indexer"
+                  failed=1
+                  failed_services="$failed_services\n*Service:* Indexer Repositories\n*Status:* none found\n"
+                else
+                  echo "✅ Found $repo_count repositories configured"
+                fi
+
+
+                if [ $failed -eq 1 ]; then
+                  echo "🚨 Sending alert to Google Chat..."
+                  payload="{\"text\":\"🚨 *Wazuh Indexer Healthcheck Alert:*\n$failed_services"
+                  if [ "$failed_indices" != "" ]; then
+                    payload="$payload\n\n⚠️ *Indices with issues:*$failed_indices"
+                  fi
+                  payload="$payload\"}"
+                  curl -s -X POST -H 'Content-Type: application/json' --data "$payload" "$CHAT_WEBHOOK_URL"
+                else
+                  echo "✅ All Indexer checks passed."
+                  curl -s -X POST -H 'Content-Type: application/json' \
+                    --data "{\"text\":\"✅ *Wazuh Indexer Healthcheck:* All endpoints healthy.\"}" \
+                    "$CHAT_WEBHOOK_URL"
+                fi
+
+                echo "Indexer healthcheck completed."
+          restartPolicy: OnFailure

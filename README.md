@@ -7,6 +7,72 @@
 
 Deploy a Wazuh cluster with a basic indexer and dashboard stack on Kubernetes.
 
+## Index
+
+- [Wazuh Kubernetes](#wazuh-kubernetes)
+  - [Branches](#branches)
+  - [Documentation](#documentation)
+  - [Things you need to configure on this repo before deploying it](#things-you-need-to-configure-on-this-repo-before-deploying-it)
+    - [1) See the domain, SSL cert config (omit step 4 for now)](#1-see-the-domain-ssl-cert-config-here-ommit-step-4-for-now)
+    - [2) Create the private certs (dashboard_http and indexer_cluster)](#2-create-the-privates-certs-stored-on-..wazuh-kuberneteswazuhcerts-for-both-dashboard_http-and-indexer_cluster)
+    - [3) Configure integrations in master.conf and worker.conf (warning)](#3-configure-all-the-integrations-youll-use-on-the-masterconf-and-workerconf-warning)
+    - [4) Apply the yamls using kustomization](#4-apply-the-yamls-files-using-the-kustomization)
+  - [Ajust wazuh resources](#ajust-wazuh-resources)
+    - [Wazuh indexer](#1-wazuh-indexer)
+    - [Wazuh manager (master / worker)](#2-wazuh-manager)
+    - [Wazuh dashboard](#3-wazuh-dashboard)
+  - [Amazon EKS development](#amazon-eks-development)
+  - [Local development](#local-development)
+  - [Directory structure](#directory-structure)
+  - [How to safely update wazuh](#how-to-safely-update-wazuh)
+    - [1. Scale down the indexer and manager pods](#1-scale-down-the-indexer-and-manager-pods)
+    - [2. Delete the originals PVC's](#2-delete-the-originals-pvcs)
+    - [3. Patch the original PV's](#3-patch-the-original-pvs)
+    - [3. Scale up manager and indexer StatefulSet](#3-scale-up-manager-and-indexer-statefull-set)
+    - [4. Patch the PV's back to wazuh-storage](#4-we-need-to-patch-again-the-pvs-to-the-original-storageclass)
+    - [5. Restore the PV's and PVC's](#5-restore-the-pvs-and-pvcs)
+  - [Wazuh Indexer S3 Snapshots Configuration](#wazuh-indexer-s3-snapshots-configuration)
+    - [1. Create the S3 bucket](#1-create-the-s3-bucket)
+    - [2. Create IAM Policy for S3 Snapshots](#2-create-iam-policy-for-s3-snapshots)
+    - [3. Create IAM User with Programmatic Access](#3-create-iam-user-with-programmatic-access)
+    - [Install repository-s3 plugin and set AWS keys](#1-install-the-repository-s3-plugin-on-indexer-pods-and-set-the-aws_acces_key_id-and-aws_secret_acces_key_id)
+    - [Check everything is properly configured](#check-everything-its-properly-configured)
+      - [Connect to wazuh indexer](#1-connect-to-wazuh-indexer)
+      - [Verify keys mounted](#2-check-if-the-keys-are-properly-mounted)
+      - [Create snapshot repository](#3-go-to-wazuh---gt--index-management---gt--repositories-and-click-on-create-repositorie)
+      - [Create snapshot policy](#4-create-the-snapshot-policy)
+      - [Restoring a snapshot](#5-restoring-a-snapshot)
+  - [Configuring a domain and SSL cert for wazuh dashboard](#configuring-a-domain-and-ssl-cert-and-for-wazuh-dashboard)
+    - [1) Configure and set a domain on Route53](#1-configure-and-set-a-domain-on-route53)
+    - [2) Install the external-dns plugin](#2-install-the-dns-external-plugin)
+    - [3) Create the SSL cert (ACM)](#3-create-the-ssl-cert)
+    - [4) Create the ingress object](#4-create-the-ingress-object)
+  - [Health checks](#health-checks)
+    - [Syslog health check](#syslog-health-check)
+      - [1) Install required applications](#1-install-required-applications)
+      - [2) Create IAM Policy and Role](#2-create-iam-policy-and-role)
+      - [3) Attach role and configure aws-auth configmap](#3-attach-role-and-configure-aws-auth-configmap)
+      - [4) Create rule and decoder needed](#4-create-rule-and-decoder-needed)
+      - [5) Verify wazuh manager services (NodePort)](#5-verify-wazuh-manager-services)
+      - [6) Create the script and add variables](#6-create-the-script-and-add-his-variables)
+      - [7) Configure the CronJob](#7-configure-the-cronjob)
+      - [8) How it works (syslog health check flow)](#8-how-it-works)
+    - [Managers health checks](#managers)
+      - [Obtain required secrets](#1-obtain-required-secrets)
+      - [How it works (managers)](#2-how-it-works)
+    - [Indexer health checks](#indexer)
+      - [Obtain required secrets](#1-obtain-required-secrets-1)
+      - [How it works (indexer)](#2-how-it-works-1)
+  - [Contribute](#contribute)
+  - [Credits and Thank you](#credits-and-thank-you)
+  - [License and copyright](#license-and-copyright)
+  - [References](#references)
+
+Notes:
+- Click any item to jump to that section in this document.
+- If a link does not work as expected, use your editor/viewer’s in-page search for the exact heading text.
+
+
 ## Branches
 
 * `master` branch contains the latest code, be aware of possible bugs on this branch.
@@ -70,6 +136,10 @@ wazuh-kubernetes/wazuh/indexer_stack/wazuh-dashboard/dashboard-deploy.yaml
 ```  
 make sure these file have the exact same config for the requested resources.  
 
+
+### 4) Secrets 
+If you don't have the secrets shown on the `kustomization.yaml` file, just comment them but also the files that uses them.
+
 ## Amazon EKS development
 
 To deploy a cluster on Amazon EKS cluster read the instructions on [instructions.md](instructions.md).
@@ -114,6 +184,13 @@ To deploy a cluster on your local environment (like Minikube, Kind or Microk8s) 
         │   │   └── generate_certs.sh
         │   └── indexer_cluster
         │       └── generate_certs.sh
+        ├── cron_job
+        │   ├── secrets
+        |   |       ├── googlechat-webhook.yaml
+        │   │       └── wazuh-api-credentials.yaml 
+        │   ├── indexer-healthcheck-cronjob.yaml  
+        │   ├── manager-dashboard-healthcheck-cronjob.yaml                     
+        │   └── syslog-healtcheck-cronjob.sh        
         ├── indexer_stack
         │   ├── wazuh-dashboard
         │   │   ├── dashboard_conf
@@ -134,12 +211,17 @@ To deploy a cluster on your local environment (like Minikube, Kind or Microk8s) 
         ├── secrets
         │   ├── dashboard-cred-secret.yaml
         │   ├── indexer-cred-secret.yaml
+        │   ├── m365-cred-secret.yaml
         │   ├── wazuh-api-cred-secret.yaml
         │   ├── wazuh-authd-pass-secret.yaml
-        │   └── wazuh-cluster-key-secret.yaml
+        │   ├── wazuh-cluster-key-secret.yaml
+        │   └── wazuh-s3-creds.yaml
         ├── wazuh_managers
-        |    ├── wazuh-cluster-svc.yaml
         |    ├── wazuh_conf
+        |    |   └── syslog-ng-secrets
+        |    |   |   ├── ca.yaml
+        |    │   |   ├── tlscrt.yaml
+        |    │   |   └── tlskey.yaml                          
         |    │   ├── entrypoint-integrations-cm.yaml
         |    |   ├── entrypoint-syslog-cm.yaml
         |    |   ├── filebeat.yml
@@ -152,10 +234,15 @@ To deploy a cluster on your local environment (like Minikube, Kind or Microk8s) 
         |    |   ├── wazuh-template-json-configmap.yaml
         |    │   └── worker.conf
         |    └── wazuh-integrations
-        |        ├── wazuh-master-sts.yaml
-        |        ├── wazuh-master-svc.yaml
-        |        ├── wazuh-workers-svc.yaml
-        |        └── wazuh-worker-sts.yaml
+        |    |   ├── custom-iris-configmap.yaml
+        |    |   ├── custom-misp-configmap.yaml       
+        |    |   └── misp-script.py
+        |    ├── syslog-svc.yaml             
+        |    ├── wazuh-cluster-svc.yaml        
+        |    ├── wazuh-master-sts.yaml
+        |    ├── wazuh-master-svc.yaml
+        |    ├── wazuh-workers-svc.yaml
+        |    └── wazuh-worker-sts.yaml
         └───kustomization.yml   
 
   
@@ -536,6 +623,7 @@ curl -k -u <user>:'<password>' -X POST \
 ```  
 make sure to replace `<snapshot_repository>, <snapshot_name>` and `<index_name>` with the proper values
 
+---
 ## Configuring a domain and SSL cert and for wazuh dashboard  
 We are going to do it using route53, external plugin, an ALB and ingress.   
 
@@ -585,7 +673,388 @@ $ pwd
 /your-pc-path/kubernetes/wazuh-kubernetes
 $ kubectl apply -k envs/eks/
 ```
-If everything is okay, you should be able to connect via https to your wazuh dashboard on you new domain name.
+If everything is okay, you should be able to connect via https to your wazuh dashboard on you new domain name.  
+
+---
+## Health checks
+
+To ensure the most critical components of Wazuh are functioning — and to verify the syslog sources that send S1 and Palo Alto alerts from Rise Broadband — we run continuous health checks using CronJobs.
+
+### Syslog health check
+
+For syslog testing we use a t2.micro EC2 instance in us-east-1. This instance also acts as a Tailscale exit node and is in the same VPC as the EKS cluster, where Wazuh and the NLB for syslogs run. This setup avoids hairpinning issues when sending health checks from inside the cluster.
+
+The steps to configure the machine and the CronJob are the following:
+
+#### 1) Install required applications
+
+On the EC2 instance, install:
+  
+```bash
+   - Aws CLI
+   - Kubectl 
+   - Cronjob
+```  
+
+#### 2) Create IAM Policy and Role
+Once you installed everything, you'll need to crate the following policy and role on AWS IAM:  
+
+`EksDescribeClusterPolicy` :  
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "eks:DescribeCluster",
+                "sts:AssumeRole"
+            ],
+            "Resource": [
+                "arn:aws:eks:us-east-1:590183765660:cluster/eks-cluster"
+            ]
+        }
+    ]
+}
+```    
+`EksKubectlAccessRole`:  
+```bash
+Permissions policies: AmazonSSMManagedInstanceCore, AmazonSSMPatchAssociation, EksDescribeClusterPolicy
+```  
+#### 3) Attach role and configure aws-auth configmap
+
+After creating both, attach the role to the EC2 instance. The EksDescribeClusterPolicy is required to retrieve the cluster node IPs used to obtain the Wazuh manager API token. Once the role is attached, add it to the aws-auth ConfigMap for the EKS cluster. From a machine that has access to the cluster, run:
+
+```bash
+kubectl edit -n kube-system configmap/aws-auth
+```
+
+Once inside add the role like this: 
+```bash
+  GNU nano 6.2                                                                                                             /tmp/kubectl-edit-2812522102.yaml *                                                                                                                     
+# Please edit the object below. Lines beginning with a '#' will be ignored,
+# and an empty file will abort the edit. If an error occurs while saving this file will be
+# reopened with the relevant failures.
+#
+apiVersion: v1
+data:
+  mapRoles: |
+    - groups:
+      - system:bootstrappers
+      - system:nodes
+      rolearn: arn:aws:iam::<ACCOUNT_ID>:role/node-role
+      username: system:node:{{EC2PrivateDNSName}}
+    - groups:
+      - system:masters
+      rolearn: arn:aws:iam::<ACCOUNT_ID>:role/admin-role
+      username: admin
+    - groups: # <---------------- Here you'll add this
+      - system:masters
+      rolearn: arn:aws:iam::<ACCOUNT_ID>:role/EksKubectlAccessRole
+      username: ec2-cronjob-admin
+  mapUsers: |
+    []
+kind: ConfigMap
+metadata:
+  creationTimestamp: "2024-07-04T11:21:29Z"
+  name: aws-auth
+  namespace: kube-system
+  resourceVersion: "131518920"
+  uid: fb1609ca-dc54-4ce2-bc5c-fc8260f57ceb
+
+
+```  
+Once that's done, add the required configuration on the EC2 instance so you can test connectivity to the EKS cluster using kubectl. From the EC2 instance, run the following command:
+
+```bash
+aws eks --region us-east-1 update-kubeconfig --name <CLUSTER-NAME>
+```
+
+#### 4) Create rule and decoder needed 
+The cronjob script will send a test alert that ensures the conectivity, in order to do that we need to create that test rule and a decoder for it, so we created inside `/home/patri/Trabajo/kubernetes/wazuh-kubernetes/wazuh/wazuh_managers/wazuh_conf/sentinelone-decoders-configmap.yaml` this decoder:  
+```html
+    <decoder name="test-syslog">
+        <prematch>testhost</prematch>
+    </decoder>
+```  
+and inside `/home/patri/Trabajo/kubernetes/wazuh-kubernetes/wazuh/wazuh_managers/wazuh_conf/local_rules_configmap.yaml` this rule:  
+```html
+    <!-- TEST SYSLOG RULE -->
+    <group name="test-syslog,">
+      <rule id="100007" level="5">
+        <decoded_as>test-syslog</decoded_as>
+        <description>Test alert for syslog connectivity testing</description>
+      </rule>
+    </group>    
+
+```  
+make sure to has that rule and decoder, you can test if it works using the rule test of wazuh dashboard: Server Managment -> Ruleset Test.  
+Try using this rule test:  
+```bash
+<134>1 2025-10-28T14:00:00Z testhost test-syslog - - - Your test message here
+```
+Output should be something like:   
+```bash
+
+**Messages:
+	INFO: (7202): Session initialized with token '8e252976'
+
+**Phase 1: Completed pre-decoding.
+	full event: '<134>1 2025-10-28T14:00:00Z testhost test-syslog - - - Your test message here'
+
+**Phase 2: Completed decoding.
+	name: 'test-syslog'
+
+**Phase 3: Completed filtering (rules).
+	id: '100007'
+	level: '5'
+	description: 'Test alert for syslog connectivity testing'
+	groups: '["test-syslog"]'
+	firedtimes: '1'
+	mail: 'true'
+**Alert to be generated.
+```
+#### 5) Verify wazuh manager services
+
+Make sure both `/wazuh/wazuh_managers/wazuh-master-svc.yaml` and `/wazuh/wazuh_managers/wazuh-worker-svc.yaml` are NodePort types, like this (in this example we use the `worker-svc`):  
+
+```yaml
+spec:
+  type: NodePort  # <----This is the important line
+  selector:
+    app: wazuh-manager
+    node-type: worker
+```    
+
+#### 6) Create the script and add his variables
+Now we need some credentials and environment variables. First, get the NodePort of the Wazuh API service like this: 
+```bash
+$ kubectl get svc -n wazuh
+
+output: 
+
+
+NAME               TYPE           CLUSTER-IP       EXTERNAL-IP                                                         PORT(S)                                        AGE
+dashboard          ClusterIP      172.xx.xxx.x     <none>                                                              80/TCP                                         94d
+indexer            ClusterIP      172.xx.xxx.xxx   <none>                                                              9200/TCP                                       94d
+wazuh              NodePort       172.xx.xxx.xxx   <none>                                                              1515:32552/TCP,55000:32467/TCP,514:32289/TCP   94d
+wazuh-cluster      ClusterIP      None             <none>                                                              1516/TCP                                       94d
+wazuh-indexer      ClusterIP      None             <none>                                                              9300/TCP                                       94d
+wazuh-syslog-svc   LoadBalancer   172.xx.xxx.xxx   external-syslog-lb-0-xxxxxxxxxxxxxxxx.elb.us-east-1.amazonaws.com   514:32173/TCP                                  77d
+wazuh-workers      NodePort       172.xx.xxx.xxx   <none>                                                              1514:31561/TCP,514:31219/TCP                   94d
+
+```
+The wazuh-master service is named "wazuh" because it exposes the Wazuh manager API port (55000); its NodePort is 32467. Run a few commands to verify you can access the cluster.
+
+Next, obtain the Wazuh API credentials for the user wazuh-wui. Ask an administrator for the /secret/wazuh-api-cred-secret.yaml file, which contains the password. You will also need the indexer API password—request it from an administrator.
+
+Then create the script, replacing the environment variables with the actual values:
+```bash
+sudo -i
+mkdir ec2-user
+cd ec2-user
+cat << 'EOF' > /root/ec2-user/check_syslog_alerts.sh
+#!/bin/bash
+
+# ================= CONFIGURATION =================
+WEBHOOK_URL="YOUR_TOKEN"
+WAZUH_USER="wazuh-wui"
+WAZUH_PASS="YOUR_PASSWORD"
+INDEXER_URL="https://indexer:9200"
+INDEXER_USER="admin"
+INDEXER_PASS="YOUR_PASSWORD"
+SYSLOG_HOST="HOST_IP" #NLB EIP
+SYSLOG_PORT=514
+NODEPORT_WAZUH=32467  # NodePort exposed for the Wazuh service
+
+# ================= SET ABSOLUTE PATH =================
+export PATH=/usr/local/bin:/usr/bin:/bin
+
+# ================= FUNCTIONS =================
+send_to_chat() {
+    local msg="$1"
+    /usr/bin/curl -s -X POST "$WEBHOOK_URL" \
+         -H "Content-Type: application/json; charset=UTF-8" \
+         -d "{\"text\": \"$msg\"}" >/dev/null 2>&1 || echo "⚠️ Error sending message to Google Chat"
+}
+
+# ================= 1. Get IP of a cluster node =================
+NODE_IP=$(/usr/local/bin/kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null)
+if [ -z "$NODE_IP" ]; then
+    send_to_chat "❌ Error: could not get the IP of the cluster node"
+    exit 1
+fi
+
+WAZUH_API="https://$NODE_IP:$NODEPORT_WAZUH"
+
+# ================= 2. Get Wazuh token =================
+TOKEN=$(/usr/bin/curl -s -u "$WAZUH_USER:$WAZUH_PASS" -k -X POST "$WAZUH_API/security/user/authenticate?raw=true")
+if [ -z "$TOKEN" ]; then
+    send_to_chat "❌ Error: could not get Wazuh token from $WAZUH_API"
+    exit 1
+fi
+
+# ================= 3. Generate random ID =================
+ID=$((RANDOM * RANDOM))
+
+# ================= 4. Send test syslog message =================
+SYSLOG_MSG="<134>1 $(/usr/bin/date -u +"%Y-%m-%dT%H:%M:%SZ") testhost test-syslog - - - Test message $ID"
+/usr/bin/echo "$SYSLOG_MSG" | /usr/bin/nc -w 1 "$SYSLOG_HOST" "$SYSLOG_PORT"
+if [ $? -ne 0 ]; then
+    send_to_chat "❌ Error: could not send syslog message to host $SYSLOG_HOST:$SYSLOG_PORT"
+    exit 1
+fi
+
+# ================= 5. Search for alert in Wazuh Indexer =================
+CURRENT_DATE=$(/usr/bin/date -u +"%Y.%m.%d")
+CURRENT_INDEX="wazuh-alerts-4.x-$CURRENT_DATE"
+
+QUERY_URL="$INDEXER_URL/$CURRENT_INDEX/_search?q=full_log:\"$ID\"&pretty"
+RESULT=$(/usr/bin/curl -sk -u "$INDEXER_USER:$INDEXER_PASS" -X GET "$QUERY_URL")
+
+if echo "$RESULT" | /usr/bin/grep -q '"value" : 0'; then
+    send_to_chat "⚠️ Alert with ID $ID was not found in the index $CURRENT_INDEX. Possible ingestion failure."
+    exit 1
+else
+    send_to_chat "✅ Test alert found in the index $CURRENT_INDEX. ID: $ID"
+fi
+EOF
+
+# Give exec perms
+chmod +x /root/ec2-user/check_syslog_alerts.sh
+```
+
+#### 7) Configure the CronJob
+
+once it's created, try to execute it manually to see if everything it's working. After that we need to schedule the CronJob, we'll do it like this:  
+
+```bash
+crontab -e
+```
+And inside the file:  
+```bash
+0 7 * * * /root/ec2-user/check_syslog_alerts.sh >> /root/ec2-user/check_syslog_alerts.log 2>&1 
+```
+This means to be executed every day at 7AM (TZ depends of the one the EC2 has configured), and log the output to the file `chec_syslog_alerts.log`  
+Save it and it should be done.  
+
+
+#### 8) How it works 
+
+This script periodically validates the end-to-end delivery of syslog messages into the Wazuh Indexer, ensuring that the entire ingestion pipeline is operational.
+
+The script performs the following steps:
+
+1. **Retrieve Node IP**  
+  Queries the Kubernetes cluster to obtain the internal IP of one of the worker nodes. This IP is used to reach the Wazuh API through the exposed NodePort service.
+
+2. **Authenticate to Wazuh API**  
+  Requests a JWT authentication token using the Wazuh API credentials (`wazuh-wui` user).
+
+3. **Generate Unique Test Message**  
+  Creates a random syslog message with a unique numeric ID and sends it via UDP/TCP to the configured Syslog endpoint (`$SYSLOG_HOST:$SYSLOG_PORT`), typically exposed through an NLB.
+
+4. **Search in the Wazuh Indexer**  
+  Queries the active daily index (`wazuh-alerts-4.x-YYYY.MM.DD`) for the same message ID using the `_search` API endpoint. If the message is found, it confirms that the Wazuh ingestion pipeline is functioning properly.
+
+5. **Send Google Chat Notification**  
+  Sends a message to a Google Chat webhook indicating the result:
+
+  - ✅ Success — the test alert was found in the index.  
+  - ⚠️ Warning — the alert was not found or ingestion failed.  
+  - ❌ Error — any of the API or syslog steps could not be completed.
+
+This ensures continuous verification of Wazuh’s syslog-to-index pipeline and provides immediate notifications if ingestion issues are detected.
+  
+---
+### Managers  
+ 
+#### 1) Obtain required secrets 
+You will need the wazuh-wui username and password, and the Google Chat webhook URL — request these from an administrator. Create the required secrets and deploy the cronjob manifest at `/home/patri/Trabajo/kubernetes/wazuh-kubernetes/wazuh/cron_job/manager-dashboard-healthcheck-cronjob.yaml`; it is likely already referenced in `wazuh/kustomization.yaml`. If everything is configured correctly, the test alerts should arrive daily at 7:00 AM (timezone depends on the host). The test is executed from inside the cluster. 
+
+#### 2) How it works
+
+
+A lightweight container periodically authenticates to the Wazuh manager API and runs a set of automated checks to ensure all core components remain available and healthy. It sends a Google Chat webhook when an issue is detected, or a concise success message when all checks pass.
+
+#### What it validates
+- **API Authentication**  
+  - Attempts to obtain a Wazuh API token; failure stops further checks and triggers an alert.
+- **Core API endpoints** 
+  - /cluster/status
+  - /manager/status
+  - /cluster/healthcheck
+  - /cluster/local/info  
+  - /cluster/configuration/validation
+  - /manager/configuration/validation
+  Each endpoint is requested and its HTTP status and response sanity are validated.
+- **Configuration checks**  
+  - Verifies config-validation endpoints and basic integrity responses.
+- **Dashboard availability**  
+  - Requests the dashboard URL and accepts HTTP 200 or 302 as healthy.
+
+
+#### Example checks 
+```bash
+# auth token
+curl -sk -u "$wazuh_wui:${WAZUH_MANAGER_API_PASS}" "https://wazuh:55000/security/user/authenticate?raw=true"
+
+# get cluster status
+curl -k -X GET "https://wazuh:55000/cluster/status" -H  "Authorization: Bearer $TOKEN"
+
+
+# dashboard
+curl -sk -I "http://dashboard.wazuh.svc.cluster.local" | head -n 1
+```
+---
+### Indexer 
+
+#### 1) Obtain required secrets  
+Same as above, you'll need the credentials, ask for it.  
+
+#### 2) How it works  
+
+A lightweight container runs periodic API queries against the Wazuh Indexer to verify cluster health and related services. It sends a Google Chat webhook when an issue is detected, or a concise success message when all checks pass.
+
+#### Checks performed
+- Cluster health  
+  - Query: `GET /_cat/health?v`  
+  - Goal: status should be `green`.  
+
+- Disk usage per node  
+  - Query: `GET /_cat/allocation?v`  
+  - Goal: warn if any node’s disk usage exceeds a configured threshold (50% in our case).
+
+- Indices status  
+  - Query: `GET /_cat/indices?v`  
+  - Goal: flag indices whose status is not `green` (yellow or red).
+
+- Repositories check  
+  - Query: `GET /_cat/repositories?v`  
+  - Goal: verify snapshot repositories are present and reachable.
+
+#### Example check commands
+```bash
+# Cluster health
+curl -k -u "${INDEXER_USER}:${INDEXER_PASS}" "https://indexer:9200/_cat/health?v"
+
+# Node allocations (disk usage)
+curl -k -u "${INDEXER_USER}:${INDEXER_PASS}" "https://indexer:9200/_cat/allocation?v"
+
+# Indices status
+curl -k -u "${INDEXER_USER}:${INDEXER_PASS}" "https://indexer:9200/_cat/indices?v"
+
+# Repositories
+curl -k -u "${INDEXER_USER}:${INDEXER_PASS}" "https://indexer:9200/_cat/repositories?v"
+```
+
+#### Notification behavior
+- On failure: send a descriptive Google Chat message with the failing check, affected node/index, and a short diagnostic snippet.  
+- On success: send a single-line confirmation that all checks passed.
+
+This block is designed to be compact, script-friendly, and easy to extend (add thresholds, extra checks, or richer payloads for notifications).
+
 ## Contribute
 
 If you want to contribute to our project please don't hesitate to send a pull request. You can also join our users [mailing list](https://groups.google.com/d/forum/wazuh) or the [Wazuh Slack community channel](https://wazuh.com/community/join-us-on-slack/) to ask questions and participate in discussions.

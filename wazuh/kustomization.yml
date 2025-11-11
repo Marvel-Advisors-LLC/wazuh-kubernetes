@@ -52,13 +52,14 @@ resources:
   - secrets/wazuh-cluster-key-secret.yaml
   - secrets/dashboard-cred-secret.yaml
   - secrets/indexer-cred-secret.yaml
-  - secrets/m365-cred-secret.yaml
+  - secrets/m365-cred-secret.yaml             ### STARTS MY CONFIG
   - secrets/wazuh-s3-creds.yaml
   - cron_job/secrets/googlechat-webhook.yaml
   - cron_job/secrets/wazuh-api-credentials.yaml
 
 
-  - cron_job/infra-health-cronjob.yaml
+  - cron_job/manager-dashboard-healthcheck-cronjob.yaml
+  - cron_job/indexer-healthcheck-cronjob.yaml       ### ENDS MY CONFIG
 
   - wazuh_managers/wazuh-cluster-svc.yaml
   - wazuh_managers/wazuh-master-svc.yaml
@@ -66,7 +67,7 @@ resources:
   - wazuh_managers/wazuh-master-sts.yaml
   - wazuh_managers/wazuh-worker-sts.yaml
   - wazuh_managers/syslog-svc.yaml
-  - wazuh_managers/wazuh_conf/syslog-ng-cm.yaml    ###################STARTS MY  CONFIG###########################33  
+  - wazuh_managers/wazuh_conf/syslog-ng-cm.yaml    ###################STARTS MY  CONFIG###########################  
   - wazuh_managers/wazuh_conf/sentinelone-decoders-configmap.yaml
   - wazuh_managers/wazuh_conf/sentinelone-rules-configmap.yaml
   - wazuh_managers/wazuh_conf/local_rules_configmap.yaml
@@ -87,4 +88,4 @@ resources:
 
   - indexer_stack/wazuh-dashboard/dashboard-svc.yaml
   - indexer_stack/wazuh-dashboard/dashboard-deploy.yaml
-  - indexer_stack/wazuh-dashboard/dashboard-ingress.yaml
+  - indexer_stack/wazuh-dashboard/dashboard-ingress.yaml   #MY CONFIG

@@ -4,7 +4,7 @@ metadata:
   name: wazuh-infra-healthcheck
   namespace: wazuh
 spec:
-  schedule: "*/5 * * * *"
+  schedule: "0 7 * * * "  # Every day at 07:00 AM
   jobTemplate:
     spec:
       template:

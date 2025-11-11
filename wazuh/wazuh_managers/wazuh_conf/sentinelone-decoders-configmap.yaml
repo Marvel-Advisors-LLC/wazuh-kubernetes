@@ -129,3 +129,7 @@ data:
         <regex>storyline=(\S+)</regex>
         <order>storyline</order>
     </decoder>
+
+    <decoder name="test-syslog">
+        <prematch>testhost</prematch>
+    </decoder>

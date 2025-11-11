@@ -70,3 +70,11 @@ data:
         <description>Drop if PolicyAction is MoveToJmf</description>
       </rule>      
     </group>
+
+    <!-- TEST SYSLOG RULE -->
+    <group name="test-syslog,">
+      <rule id="100007" level="5">
+        <decoded_as>test-syslog</decoded_as>
+        <description>Test alert for syslog connectivity testing</description>
+      </rule>
+    </group>    
