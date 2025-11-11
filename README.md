@@ -4,7 +4,7 @@ Deploy a Wazuh cluster with a basic indexer and dashboard stack on Kubernetes.
 
 # Branches
 
-* `4.9.1-final` production branch, use that branch for working with this repo.
+* `main-production` production branch, use that branch for working with this repo.
 
 
 
