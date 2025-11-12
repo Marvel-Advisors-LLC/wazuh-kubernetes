@@ -847,9 +847,16 @@ wazuh-workers      NodePort       172.xx.xxx.xxx   <none>                       
 ```
 The wazuh-master service is named "wazuh" because it exposes the Wazuh manager API port (55000); its NodePort is 32467. Run a few commands to verify you can access the cluster.
 
-Next, obtain the Wazuh API credentials for the user wazuh-wui. Ask an administrator for the /secret/wazuh-api-cred-secret.yaml file, which contains the password. You will also need the indexer API password—request it from an administrator.
+Next, obtain the Wazuh API credentials for the user wazuh-wui. Ask an administrator for the /secret/wazuh-api-cred-secret.yaml file, which contains the password. You will also need the indexer API password—request it from an administrator.  
 
-Then create the script, replacing the environment variables with the actual values:
+Once you have the credentials, create parameters in **AWS Systems Manager Parameter Store** to avoid hardcoding sensitive values in the script. In the AWS console, go to `Parameter Store` and create each parameter using:
+
+```
+Tier: Standard
+Type: Secure String (KMS key source -> My current account)
+```
+
+Ensure the parameter names match those used in the script below. After creating the parameters, create the script and replace any placeholder environment variables with the actual parameter names or values.
 ```bash
 sudo -i
 mkdir ec2-user
@@ -858,13 +865,13 @@ cat << 'EOF' > /root/ec2-user/check_syslog_alerts.sh
 #!/bin/bash
 
 # ================= CONFIGURATION =================
-WEBHOOK_URL="YOUR_TOKEN"
-WAZUH_USER="wazuh-wui"
-WAZUH_PASS="YOUR_PASSWORD"
+WEBHOOK_URL=$(aws ssm get-parameter --name "WEBHOOK_URL" --with-decryption --query "Parameter.Value" --output text)
+WAZUH_USER=$(aws ssm get-parameter --name "WAZUH_USER" --with-decryption --query "Parameter.Value" --output text)
+WAZUH_PASS=$(aws ssm get-parameter --name "WAZUH_PASS" --with-decryption --query "Parameter.Value" --output text)
 INDEXER_URL="https://indexer:9200"
-INDEXER_USER="admin"
-INDEXER_PASS="YOUR_PASSWORD"
-SYSLOG_HOST="HOST_IP" #NLB EIP
+INDEXER_USER=$(aws ssm get-parameter --name "INDEXER_USER" --with-decryption --query "Parameter.Value" --output text)
+INDEXER_PASS=$(aws ssm get-parameter --name "INDEXER_PASS" --with-decryption --query "Parameter.Value" --output text)
+SYSLOG_HOST=$(aws ssm get-parameter --name "SYSLOG_HOST" --with-decryption --query "Parameter.Value" --output text)
 SYSLOG_PORT=514
 NODEPORT_WAZUH=32467  # NodePort exposed for the Wazuh service
 
