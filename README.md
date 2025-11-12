@@ -772,13 +772,13 @@ aws eks --region us-east-1 update-kubeconfig --name <CLUSTER-NAME>
 ```
 
 #### 4) Create rule and decoder needed 
-The cronjob script will send a test alert that ensures the conectivity, in order to do that we need to create that test rule and a decoder for it, so we created inside `/home/patri/Trabajo/kubernetes/wazuh-kubernetes/wazuh/wazuh_managers/wazuh_conf/sentinelone-decoders-configmap.yaml` this decoder:  
+The cronjob script will send a test alert that ensures the conectivity, in order to do that we need to create that test rule and a decoder for it, so we created inside `../wazuh/wazuh_managers/wazuh_conf/sentinelone-decoders-configmap.yaml` this decoder:  
 ```html
     <decoder name="test-syslog">
         <prematch>testhost</prematch>
     </decoder>
 ```  
-and inside `/home/patri/Trabajo/kubernetes/wazuh-kubernetes/wazuh/wazuh_managers/wazuh_conf/local_rules_configmap.yaml` this rule:  
+and inside `../wazuh/wazuh_managers/wazuh_conf/local_rules_configmap.yaml` this rule:  
 ```html
     <!-- TEST SYSLOG RULE -->
     <group name="test-syslog,">
@@ -953,7 +953,7 @@ The script performs the following steps:
   Requests a JWT authentication token using the Wazuh API credentials (`wazuh-wui` user).
 
 3. **Generate Unique Test Message**  
-  Creates a random syslog message with a unique numeric ID and sends it via UDP/TCP to the configured Syslog endpoint (`$SYSLOG_HOST:$SYSLOG_PORT`), typically exposed through an NLB.
+  Creates a random syslog message with a unique numeric ID and sends it via TCP to the configured Syslog endpoint (`$SYSLOG_HOST:$SYSLOG_PORT`), typically exposed through an NLB.
 
 4. **Search in the Wazuh Indexer**  
   Queries the active daily index (`wazuh-alerts-4.x-YYYY.MM.DD`) for the same message ID using the `_search` API endpoint. If the message is found, it confirms that the Wazuh ingestion pipeline is functioning properly.
@@ -971,7 +971,7 @@ This ensures continuous verification of Wazuh’s syslog-to-index pipeline and p
 ### Managers  
  
 #### 1) Obtain required secrets 
-You will need the wazuh-wui username and password, and the Google Chat webhook URL — request these from an administrator. Create the required secrets and deploy the cronjob manifest at `/home/patri/Trabajo/kubernetes/wazuh-kubernetes/wazuh/cron_job/manager-dashboard-healthcheck-cronjob.yaml`; it is likely already referenced in `wazuh/kustomization.yaml`. If everything is configured correctly, the test alerts should arrive daily at 7:00 AM (timezone depends on the host). The test is executed from inside the cluster. 
+You will need the wazuh-wui username and password, and the Google Chat webhook URL — request these from an administrator. Create the required secrets and deploy the cronjob manifest at `../wazuh/cron_job/manager-dashboard-healthcheck-cronjob.yaml`; it is likely already referenced in `wazuh/kustomization.yaml`. If everything is configured correctly, the test alerts should arrive daily at 7:00 AM (timezone depends on the host). The test is executed from inside the cluster. 
 
 #### 2) How it works
 
