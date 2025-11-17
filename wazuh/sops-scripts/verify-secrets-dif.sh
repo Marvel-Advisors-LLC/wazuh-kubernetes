@@ -30,7 +30,7 @@ for enc in $ENCRYPTED_FILES; do
     if diff <(sops -d "$enc" | yq eval -o=json) <(yq eval -o=json "$original") >/dev/null; then
         echo "✅ OK"
     else
-        echo "❌ MISMATCH"
+        echo " MISMATCH!"
         ERRORS=$((ERRORS+1))
     fi
 done
