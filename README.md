@@ -1055,6 +1055,19 @@ curl -k -u "${INDEXER_USER}:${INDEXER_PASS}" "https://indexer:9200/_cat/indices?
 # Repositories
 curl -k -u "${INDEXER_USER}:${INDEXER_PASS}" "https://indexer:9200/_cat/repositories?v"
 ```
+To test the /health endpoint, you can manually create an index that will remain in the yellow state, for example:
+
+```bash
+curl -k -u ${INDEXER_USER}:${INDEXER_PASS} -X PUT "https://indexer:9200/test-index-yellow" \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "settings": {
+          "number_of_shards": 1,
+          "number_of_replicas": 2
+        }
+      }'
+```
+This creates an index named `test-index-yellow` that will remain unassigned and in a yellow state. When the health checks run, they will send a notification via Google Chat.
 
 #### Notification behavior
 - On failure: send a descriptive Google Chat message with the failing check, affected node/index, and a short diagnostic snippet.  
