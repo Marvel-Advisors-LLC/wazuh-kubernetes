@@ -93,16 +93,32 @@ go within those two folders and run `./generate_certs.sh`
 #### 4) Apply the yaml's files using the kustomization   
 Check you're on the correct path:  
 ```bash
-$ pwd 
-/your-folders-path/kubernetes/wazuh-kubernetes
+$ pwd /your-folders-path/kubernetes/wazuh-kubernetes
 
 ```
 Then apply the yaml's: 
 ```bash
 kubectl apply -k envs/eks/
 ```
+#### 5) Configure pre-hooks
+To keep the repository secrets versioned and synchronized between your local machine and GitHub, we use a pre-commit hook. The hook executes the script at `/wazuh-kubernetes/sops-scripts/verify-secrets-dif.sh`
 
-## Ajust wazuh resources  
+You can find the hook at .wazuh-git-hooks/pre-commit/secrets-verify. Install it with:
+
+```bash
+# Copy the versioned hook into the local git hooks directory
+cp .wazuh-git-hooks/pre-commit/secrets-verify .git/hooks/pre-commit
+
+# Make it executable
+chmod +x .git/hooks/pre-commit
+
+# Verify installation
+ls -l .git/hooks/pre-commit
+```
+
+The hook runs the verification script before each commit. The script requires AWS credentials, so ensure they are configured in your environment.
+
+## Adjust wazuh resources  
 
 If you want to change the default values for the wazuh resources, you can do it from these files:  
 
