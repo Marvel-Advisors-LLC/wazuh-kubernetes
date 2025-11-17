@@ -31,6 +31,7 @@ wazuh/certs/indexer_cluster/*.srl
 # Secretos sin cifrar: ignorar todos los YAML
 /wazuh/cron_job/secrets/*.yaml
 /wazuh/wazuh_managers/wazuh_conf/syslog-ng-secrets/*.yaml
+/wazuh/secrets/*.yaml
 
 # Pero permitir versionar los cifrados
 !/wazuh/cron_job/secrets/*.enc.yaml
