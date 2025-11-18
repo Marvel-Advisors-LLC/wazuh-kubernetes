@@ -1,31 +1,34 @@
 #!/bin/bash
 set -e
 
-# Verify that a KMS ARN was provided
 if [ -z "$1" ]; then
     echo "Usage: $0 <KMS_ARN>"
     exit 1
 fi
 
 KMS_ARN="$1"
+SECRET_DIR="."
 
-# Base directory of your secrets
-SECRET_DIR="../"
+# Encuentra todos los archivos originales (no encriptados)
+FILES=$(find "$SECRET_DIR" -type f \( \
+    \( -name "*.yaml" -path "*/secrets/*" -o \
+       -path "*/cron_job/secrets/*" -o \
+       -path "*/wazuh_managers/wazuh_conf/syslog-ng-secrets/*" \) -o \
+    -name "worker.conf" -o -name "master.conf" \) ! -name "*.enc.yaml"
+)
 
-# Find all YAML files that are secrets (adjust the paths according to your repo)
-FILES=$(find "$SECRET_DIR" -type f -name "*.yaml" \
-  \( -path "*/secrets/*" -o \
-     -path "*/cron_job/secrets/*" -o \
-     -path "*/wazuh_managers/wazuh_conf/syslog-ng-secrets/*" \))
-
-# Encrypt each file
 for f in $FILES; do
-
-    # Replace .yaml with .enc.yaml (clean, correct)
-    ENC="${f%.yaml}.enc.yaml"
+    case "$f" in
+        *.conf) ENC="${f}.enc" ;;       # solo .enc para archivos .conf
+        *.yaml) ENC="${f%.yaml}.enc.yaml" ;;  # .enc.yaml para YAML normales
+        *) echo "Skipping unknown file $f"; continue ;;
+    esac
 
     echo "Encrypting $f -> $ENC"
     sops --encrypt --kms "$KMS_ARN" "$f" > "$ENC"
 done
 
-echo "✅ All secrets were encrypted correctly. Encrypted files have the suffix .enc.yaml."
+echo "✅ All secrets were encrypted correctly. Encrypted files have the .enc.yaml suffix."
+
+
+

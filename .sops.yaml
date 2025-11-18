@@ -1,0 +1,16 @@
+creation_rules:
+  # Todos los YAML bajo wazuh/
+  - path_regex: wazuh/.*\.yaml$
+    encrypted_regex: ^(data)$
+    yaml_keep_line_breaks: true
+
+  # Todos los YAML bajo wazuh_managers/
+  - path_regex: wazuh_managers/.*\.yaml$
+    encrypted_regex: ^(data)$
+    yaml_keep_line_breaks: true
+
+  # Archivos XML (.conf) bajo wazuh_managers/
+  - path_regex: wazuh_managers/.*\.conf$
+    encrypted_suffix: ".enc"
+    # No aplicar regex de YAML, tratar como binario/texto
+    input_type: "binary"

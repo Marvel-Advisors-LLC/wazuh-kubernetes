@@ -1,19 +1,26 @@
 #!/bin/bash
 set -e
 
-# Carpeta base donde están los secrets
 SECRET_DIR="../"
-
 echo "🔍 Verifying secret synchronization..."
 
-# Buscar todos los archivos cifrados
-ENCRYPTED_FILES=$(find "$SECRET_DIR" -type f -name "*.enc.yaml")
+# Buscar todos los archivos cifrados (.enc y .enc.yaml)
+ENCRYPTED_FILES=$(find "$SECRET_DIR" -type f \( -name "*.enc.yaml" -o -name "*.enc" \))
 
 ERRORS=0
 
 for enc in $ENCRYPTED_FILES; do
-    # Obtener el path del archivo original sin la extensión .enc.yaml
-    original="${enc/.enc.yaml/.yaml}"
+    # Detectar archivo original y tipo de comparación
+    if [[ "$enc" == *.enc.yaml ]]; then
+        original="${enc/.enc.yaml/.yaml}"
+        USE_YQ=true
+    elif [[ "$enc" == *.enc ]]; then
+        original="${enc/.enc/}"
+        USE_YQ=false
+    else
+        echo "Skipping unknown file $enc"
+        continue
+    fi
 
     echo -n "Checking $(basename "$enc") ... "
 
@@ -23,15 +30,22 @@ for enc in $ENCRYPTED_FILES; do
         continue
     fi
 
-    # Comparar contenido desencriptado vs original normalizado por yq
-    DECRYPTED_CONTENT=$(sops -d "$enc" 2>/dev/null | yq eval '.' -o=yaml)
-    ORIGINAL_CONTENT=$(yq eval '.' -o=yaml "$original")
-
-    if diff <(sops -d "$enc" | yq eval -o=json) <(yq eval -o=json "$original") >/dev/null; then
-        echo "✅ OK"
+    if [[ "$USE_YQ" == true ]]; then
+        # YAML -> normalizar con yq
+        if diff <(sops -d "$enc" 2>/dev/null | yq eval -o=json) <(yq eval -o=json "$original") >/dev/null; then
+            echo "✅ OK"
+        else
+            echo "❌ MISMATCH"
+            ERRORS=$((ERRORS+1))
+        fi
     else
-        echo "❌ MISMATCH"
-        ERRORS=$((ERRORS+1))
+        # Archivos .conf -> comparar crudo
+        if diff <(sops -d "$enc" 2>/dev/null) "$original" >/dev/null; then
+            echo "✅ OK"
+        else
+            echo "❌ MISMATCH"
+            ERRORS=$((ERRORS+1))
+        fi
     fi
 done
 

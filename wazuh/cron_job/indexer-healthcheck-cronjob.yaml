@@ -134,9 +134,6 @@ spec:
                   curl -s -X POST -H 'Content-Type: application/json' --data "$payload" "$CHAT_WEBHOOK_URL"
                 else
                   echo "✅ All Indexer checks passed."
-                  curl -s -X POST -H 'Content-Type: application/json' \
-                    --data "{\"text\":\"✅ *Wazuh Indexer Healthcheck:* All endpoints healthy.\"}" \
-                    "$CHAT_WEBHOOK_URL"
                 fi
 
                 echo "Indexer healthcheck completed."

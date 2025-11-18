@@ -20,7 +20,7 @@ wazuh/certs/indexer_cluster/*.srl
 *.csr
 
 
-# Archivos de configuración de Kubernetes locales sensibles
+# Archives Kubernetes configuration files with sensitive data
 /envs/eks/pv-nfs.yaml
 /envs/eks/pvc-nfs.yaml
 /envs/eks/wazuh-indexer-legacy.yaml
@@ -28,11 +28,15 @@ wazuh/certs/indexer_cluster/*.srl
 /wazuh/secrets/wazuh-s3-creds.yaml
 
 
-# Secretos sin cifrar: ignorar todos los YAML
+# Unencrypted secrets: ignore all YAML files
 /wazuh/cron_job/secrets/*.yaml
 /wazuh/wazuh_managers/wazuh_conf/syslog-ng-secrets/*.yaml
 /wazuh/secrets/*.yaml
 
-# Pero permitir versionar los cifrados
+# But allow versioning the encrypted ones
 !/wazuh/cron_job/secrets/*.enc.yaml
 !/wazuh/wazuh_managers/wazuh_conf/syslog-ng-secrets/*.enc.yaml
+
+# Wazuh configuration files with sensitive data
+wazuh/wazuh_managers/wazuh_conf/master.conf
+wazuh/wazuh_managers/wazuh_conf/worker.conf

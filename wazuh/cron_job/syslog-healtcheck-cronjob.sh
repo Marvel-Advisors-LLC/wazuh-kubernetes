@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # ================= CONFIGURATION =================
-WEBHOOK_URL="https://chat.googleapis.com/v1/spaces/AAQADjkyoiw/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=dmhH1PVLvHUKc5Zw1pG8qP8TsrvG3GayK4OKC3508zc"
+WEBHOOK_URL="YOUR_GOOGLE_CHAT_WEBHOOK_URL"
 WAZUH_USER="wazuh-wui"
-WAZUH_PASS="MyS3cr37P450r.*-"
+WAZUH_PASS="YOUR_WUI_PASSWORD"
 INDEXER_URL="https://indexer:9200"
-INDEXER_USER="admin"
-INDEXER_PASS="soeJKJg4%65.2+-^^"
-SYSLOG_HOST="54.197.31.77"
+INDEXER_USER="YOUR_USERNAME"
+INDEXER_PASS="YOUR_PASSWORD"
+SYSLOG_HOST="EIP_NLB_WAZUH"  
 SYSLOG_PORT=514
 NODEPORT_WAZUH=32467  # NodePort exposed for the Wazuh service
 
@@ -60,5 +60,5 @@ if echo "$RESULT" | /usr/bin/grep -q '"value" : 0'; then
     send_to_chat "⚠️ Alert with ID $ID was not found in the index $CURRENT_INDEX. Possible ingestion failure."
     exit 1
 else
-    send_to_chat "✅ Test alert found in the index $CURRENT_INDEX. ID: $ID"
+    echo "✅ Test alert found in the index $CURRENT_INDEX. ID: $ID"
 fi

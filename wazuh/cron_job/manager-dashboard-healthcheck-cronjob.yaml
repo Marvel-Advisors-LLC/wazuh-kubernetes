@@ -109,9 +109,6 @@ spec:
                     "$CHAT_WEBHOOK_URL"
                 else
                   echo "✅ All Wazuh components healthy."
-                  curl -s -X POST -H 'Content-Type: application/json' \
-                    --data "{\"text\":\"✅ *Wazuh Infra Healthcheck:* All endpoints and dashboard healthy.\"}" \
-                    "$CHAT_WEBHOOK_URL"
                 fi
 
                 echo "Healthcheck completed."
