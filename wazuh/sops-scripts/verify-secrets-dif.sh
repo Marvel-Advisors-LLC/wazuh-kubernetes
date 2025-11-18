@@ -4,13 +4,13 @@ set -e
 SECRET_DIR="../"
 echo "🔍 Verifying secret synchronization..."
 
-# Buscar todos los archivos cifrados (.enc y .enc.yaml)
+# Look for all encrypted files (.enc and .enc.yaml)
 ENCRYPTED_FILES=$(find "$SECRET_DIR" -type f \( -name "*.enc.yaml" -o -name "*.enc" \))
 
 ERRORS=0
 
 for enc in $ENCRYPTED_FILES; do
-    # Detectar archivo original y tipo de comparación
+    # Detect original file and comparison type
     if [[ "$enc" == *.enc.yaml ]]; then
         original="${enc/.enc.yaml/.yaml}"
         USE_YQ=true
@@ -31,7 +31,7 @@ for enc in $ENCRYPTED_FILES; do
     fi
 
     if [[ "$USE_YQ" == true ]]; then
-        # YAML -> normalizar con yq
+        # YAML -> normalize with yq
         if diff <(sops -d "$enc" 2>/dev/null | yq eval -o=json) <(yq eval -o=json "$original") >/dev/null; then
             echo "✅ OK"
         else
@@ -39,7 +39,7 @@ for enc in $ENCRYPTED_FILES; do
             ERRORS=$((ERRORS+1))
         fi
     else
-        # Archivos .conf -> comparar crudo
+        # .conf files -> compare raw
         if diff <(sops -d "$enc" 2>/dev/null) "$original" >/dev/null; then
             echo "✅ OK"
         else

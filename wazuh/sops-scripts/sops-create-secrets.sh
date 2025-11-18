@@ -9,7 +9,7 @@ fi
 KMS_ARN="$1"
 SECRET_DIR="."
 
-# Encuentra todos los archivos originales (no encriptados)
+# Find all original (unencrypted) files
 FILES=$(find "$SECRET_DIR" -type f \( \
     \( -name "*.yaml" -path "*/secrets/*" -o \
        -path "*/cron_job/secrets/*" -o \
@@ -19,8 +19,8 @@ FILES=$(find "$SECRET_DIR" -type f \( \
 
 for f in $FILES; do
     case "$f" in
-        *.conf) ENC="${f}.enc" ;;       # solo .enc para archivos .conf
-        *.yaml) ENC="${f%.yaml}.enc.yaml" ;;  # .enc.yaml para YAML normales
+        *.conf) ENC="${f}.enc" ;;       # only .enc for .conf files
+        *.yaml) ENC="${f%.yaml}.enc.yaml" ;;  # .enc.yaml for regular YAML files
         *) echo "Skipping unknown file $f"; continue ;;
     esac
 
