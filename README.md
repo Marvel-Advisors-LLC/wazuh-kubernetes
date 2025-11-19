@@ -122,7 +122,7 @@ The hook runs the verification script before each commit. The script requires AW
 
 If you want to change the default values for the wazuh resources, you can do it from these files:  
 
-#### 1) Wazuh indexer:  
+### 1) Wazuh indexer:  
 
 ```
 wazuh-kubernetes/envs/eks/indexer-resources.yaml
@@ -130,7 +130,7 @@ wazuh-kubernetes/wazuh/indexer_stack/wazuh-indexer/cluster/indexer-sts.yaml
 ``` 
 make sure these file have the exact same config for the requested resources.  
 
-#### 2) Wazuh manager:  
+### 2) Wazuh manager:  
 ```
 master:
 wazuh-kubernetes/envs/eks/wazuh-master-resources.yaml
@@ -143,7 +143,7 @@ wazuh-kubernetes/wazuh/wazuh_managers/wazuh-worker-sts.yaml
 ```  
 make sure these file have the exact same config for the requested resources.    
 
-#### 3) Wazuh dashboard: 
+### 3) Wazuh dashboard: 
 
 ```
 wazuh-kubernetes/envs/eks/dashboard-resources.yaml
@@ -154,8 +154,26 @@ make sure these file have the exact same config for the requested resources.
 
 
 ### 4) Secrets 
-If you don't have the secrets shown on the `kustomization.yaml` file, just comment them but also the files that uses them.
+As mentioned on [Things you need to configure on this repo before deploying it](#things-you-need-to-configure-on-this-repo-before-deploying-it)  in step 5, we use SOPS to encrypt secrets so they can be stored in GitHub.  
+Install SOPS (stable release) from **https://github.com/getsops/sops**. You will also need access to the KMS key named `KMS-K8s-secrets-sops` (ask and admin for it) to encrypt/decrypt secrets.
 
+#### 1) Decrypt the secrets
+The repository includes helper scripts in wazuh/sops-scripts/ for encrypting, decrypting, and verifying secrets (used to keep secrets and scripts synchronized between local files and GitHub). To decrypt all secrets, run the decryption script:
+
+```bash
+./wazuh/sops-scripts/sops-decrypt-secrets.sh
+```
+
+The script produces files suffixed with `_decrypted` (for example `secret_name_decrypted`). Rename each file to remove the `_decrypted` suffix so the filenames match the entries in the kustomization files.
+
+#### 2) Edit a secret
+If you modify a secret, re-encrypt it before committing. The repository provides a pre-commit hook that runs `verify-secrets-dif.sh` to ensure secrets in the repo remain synchronized. If the verification fails, the commit will be blocked until the issue is resolved.
+
+#### 3) SOPS creations rules
+We use the `.sops.yaml` file for mantaining proper format on the files, make sure that file exists. 
+
+#### 4) Maintaining the scripts
+If you add secrets in new folders, update the corresponding sops-scripts to include those folders so encryption/decryption and verification remain correct and consistent.
 ## Amazon EKS development
 
 To deploy a cluster on Amazon EKS cluster read the instructions on [instructions.md](instructions.md).
@@ -202,8 +220,8 @@ To deploy a cluster on your local environment (like Minikube, Kind or Microk8s) 
         │       └── generate_certs.sh
         ├── cron_job
         │   ├── secrets
-        |   |       ├── googlechat-webhook.yaml
-        │   │       └── wazuh-api-credentials.yaml 
+        |   |       ├── googlechat-webhook.yaml (and encrypted version)
+        │   │       └── wazuh-api-credentials.yaml  (and encrypted version)
         │   ├── indexer-healthcheck-cronjob.yaml  
         │   ├── manager-dashboard-healthcheck-cronjob.yaml                     
         │   └── syslog-healtcheck-cronjob.sh        
@@ -225,19 +243,23 @@ To deploy a cluster on your local environment (like Minikube, Kind or Microk8s) 
         │       └── indexer-svc.yaml
         ├── kustomization.yml
         ├── secrets
-        │   ├── dashboard-cred-secret.yaml
-        │   ├── indexer-cred-secret.yaml
-        │   ├── m365-cred-secret.yaml
-        │   ├── wazuh-api-cred-secret.yaml
-        │   ├── wazuh-authd-pass-secret.yaml
-        │   ├── wazuh-cluster-key-secret.yaml
-        │   └── wazuh-s3-creds.yaml
+        │   ├── dashboard-cred-secret.yaml (and encrypted version)
+        │   ├── indexer-cred-secret.yaml (and encrypted version)
+        │   ├── m365-cred-secret.yaml (and encrypted version)
+        │   ├── wazuh-api-cred-secret.yaml (and encrypted version)
+        │   ├── wazuh-authd-pass-secret.yaml (and encrypted version)
+        │   ├── wazuh-cluster-key-secret.yaml (and encrypted version)
+        │   └── wazuh-s3-creds.yaml (and encrypted version)
+        ├── sops-scripts
+        │   ├── sops-create-secrets.sh
+        │   ├── sops-decrypt-secrets.sh
+        │   └── verify-secrets-dif.sh
         ├── wazuh_managers
         |    ├── wazuh_conf
         |    |   └── syslog-ng-secrets
-        |    |   |   ├── ca.yaml
-        |    │   |   ├── tlscrt.yaml
-        |    │   |   └── tlskey.yaml                          
+        |    |   |   ├── ca.yaml (and encrypted version)
+        |    │   |   ├── tlscrt.yaml (and encrypted version)
+        |    │   |   └── tlskey.yaml (and encrypted version)                          
         |    │   ├── entrypoint-integrations-cm.yaml
         |    |   ├── entrypoint-syslog-cm.yaml
         |    |   ├── filebeat.yml
