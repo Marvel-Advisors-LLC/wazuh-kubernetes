@@ -13,14 +13,20 @@ Deploy a Wazuh cluster with a basic indexer and dashboard stack on Kubernetes.
   - [Branches](#branches)
   - [Documentation](#documentation)
   - [Things you need to configure on this repo before deploying it](#things-you-need-to-configure-on-this-repo-before-deploying-it)
-    - [1) See the domain, SSL cert config (omit step 4 for now)](#1-see-the-domain-ssl-cert-config-here-ommit-step-4-for-now)
-    - [2) Create the private certs (dashboard_http and indexer_cluster)](#2-create-the-privates-certs-stored-on-..wazuh-kuberneteswazuhcerts-for-both-dashboard_http-and-indexer_cluster)
+    - [1) See the domain, SSL cert config (omit step 4 for now)](#1-see-the-domain-ssl-cert-config-here-omit-step-4-for-now)
+    - [2) Create the private certs (dashboard_http and indexer_cluster)](#2-create-the-private-certs-stored-on-..wazuh-kuberneteswazuhcerts-for-both-dashboard_http-and-indexer_cluster)
     - [3) Configure integrations in master.conf and worker.conf (warning)](#3-configure-all-the-integrations-youll-use-on-the-masterconf-and-workerconf-warning)
-    - [4) Apply the yamls using kustomization](#4-apply-the-yamls-files-using-the-kustomization)
-  - [Ajust wazuh resources](#ajust-wazuh-resources)
-    - [Wazuh indexer](#1-wazuh-indexer)
-    - [Wazuh manager (master / worker)](#2-wazuh-manager)
-    - [Wazuh dashboard](#3-wazuh-dashboard)
+    - [4) Apply the YAMLs using kustomization](#4-apply-the-yamls-files-using-the-kustomization)
+    - [5) Configure pre-hooks](#5-configure-pre-hooks)
+  - [Adjust wazuh resources](#adjust-wazuh-resources)
+    - [1) Wazuh indexer](#1-wazuh-indexer)
+    - [2) Wazuh manager (master / worker)](#2-wazuh-manager)
+    - [3) Wazuh dashboard](#3-wazuh-dashboard)
+    - [4) Secrets (SOPS)](#4-secrets)
+      - [Decrypt the secrets](#1-decrypt-the-secrets)
+      - [Edit a secret (re-encrypt)](#2-edit-a-secret)
+      - [SOPS creation rules (.sops.yaml)](#3-sops-creations-rules)
+      - [Maintaining the scripts](#4-maintaining-the-scripts)
   - [Amazon EKS development](#amazon-eks-development)
   - [Local development](#local-development)
   - [Directory structure](#directory-structure)
@@ -28,9 +34,9 @@ Deploy a Wazuh cluster with a basic indexer and dashboard stack on Kubernetes.
     - [1. Scale down the indexer and manager pods](#1-scale-down-the-indexer-and-manager-pods)
     - [2. Delete the originals PVC's](#2-delete-the-originals-pvcs)
     - [3. Patch the original PV's](#3-patch-the-original-pvs)
-    - [3. Scale up manager and indexer StatefulSet](#3-scale-up-manager-and-indexer-statefull-set)
-    - [4. Patch the PV's back to wazuh-storage](#4-we-need-to-patch-again-the-pvs-to-the-original-storageclass)
-    - [5. Restore the PV's and PVC's](#5-restore-the-pvs-and-pvcs)
+    - [4. Scale up manager and indexer StatefulSet](#3-scale-up-manager-and-indexer-statefull-set)
+    - [5. Patch the PV's back to wazuh-storage](#4-we-need-to-patch-again-the-pvs-to-the-original-storageclass)
+    - [6. Restore the PV's and PVC's](#5-restore-the-pvs-and-pvcs)
   - [Wazuh Indexer S3 Snapshots Configuration](#wazuh-indexer-s3-snapshots-configuration)
     - [1. Create the S3 bucket](#1-create-the-s3-bucket)
     - [2. Create IAM Policy for S3 Snapshots](#2-create-iam-policy-for-s3-snapshots)
@@ -1035,7 +1041,7 @@ This ensures continuous verification of Wazuh’s syslog-to-index pipeline and p
 ### Managers  
  
 #### 1) Obtain required secrets 
-You will need the wazuh-wui username and password, and the Google Chat webhook URL — request these from an administrator. Create the required secrets and deploy the cronjob manifest at `../wazuh/cron_job/manager-dashboard-healthcheck-cronjob.yaml`; it is likely already referenced in `wazuh/kustomization.yaml`. If everything is configured correctly, the test alerts should arrive daily at 7:00 AM (timezone depends on the host). The test is executed from inside the cluster. 
+You will need the wazuh-wui username and password, and the Google Chat webhook URL — request these from an administrator. If you configured SOPS properly and got the KMS key, you should be good with the decryption. If everything is configured correctly, the test alerts should arrive daily at 7:00 AM (timezone depends on the host). The test is executed from inside the cluster. 
 
 #### 2) How it works
 
@@ -1075,7 +1081,7 @@ curl -sk -I "http://dashboard.wazuh.svc.cluster.local" | head -n 1
 ### Indexer 
 
 #### 1) Obtain required secrets  
-Same as above, you'll need the credentials, ask for it.  
+If you configured SOPS properly and get the KMS key, you should be good with the decryption
 
 #### 2) How it works  
 
