@@ -124,6 +124,51 @@ spec:
                 fi
 
 
+                echo "✅ Checking for invalid_request events (rule.id 91648)..."
+
+                CURRENT_DATE=$(date -u +"%Y.%m.%d")
+                CURRENT_INDEX="wazuh-alerts-4.x-$CURRENT_DATE"
+
+                SEARCH_URL="https://indexer:9200/$CURRENT_INDEX/_search"
+
+                READ_INVALID=$(curl -sk -u "$INDEXER_USER:$INDEXER_PASS" \
+                  -H 'Content-Type: application/json' \
+                  -X GET "$SEARCH_URL" \
+                  -d '{
+                        "size": 50,
+                        "query": { "term": { "rule.id": "91648" } },
+                        "_source": ["data.office365.response"]
+                      }' || true)
+
+                if [ -z "$READ_INVALID" ]; then
+                    echo "❌ Could not query invalid_request (empty response)"
+                    failed=1
+                    failed_services="$failed_services\n*Service:* invalid_request Check\n*Status:* empty response\n"
+                else
+                    HIT_COUNT=$(echo "$READ_INVALID" | jq -r '.hits.total.value // 0' 2>/dev/null || echo 0)
+
+                    if ! echo "$HIT_COUNT" | grep -Eq '^[0-9]+$'; then
+                        HIT_COUNT=0
+                    fi
+
+                    if [ "$HIT_COUNT" -eq 0 ]; then
+                        echo "No rule.id=91648 events found today."
+                    else
+                        RESPONSES=$(echo "$READ_INVALID" \
+                            | jq -r '.hits.hits[]._source.data.office365.response // empty' \
+                            2>/dev/null || true)
+
+                        if echo "$RESPONSES" | grep -qi "invalid_request"; then
+                            echo "❗ Found invalid_request in Office365 responses!"
+                            failed=1
+                            failed_services="$failed_services\n*Service:* Office365 invalid_request, check tenant_id,client_id or secret, one of them is wrong.\n*Status:* detected\n"
+                        else
+                            echo "✅ No invalid_request found in today's alerts."
+                        fi
+                    fi
+                fi
+
+
                 if [ $failed -eq 1 ]; then
                   echo "🚨 Sending alert to Google Chat..."
                   payload="{\"text\":\"🚨 *Wazuh Indexer Healthcheck Alert:*\n$failed_services"
@@ -134,7 +179,8 @@ spec:
                   curl -s -X POST -H 'Content-Type: application/json' --data "$payload" "$CHAT_WEBHOOK_URL"
                 else
                   echo "✅ All Indexer checks passed."
-                fi
+                fi                
+
 
                 echo "Indexer healthcheck completed."
           restartPolicy: OnFailure

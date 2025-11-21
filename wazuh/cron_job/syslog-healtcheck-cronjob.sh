@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # ================= CONFIGURATION =================
-WEBHOOK_URL="YOUR_GOOGLE_CHAT_WEBHOOK_URL"
-WAZUH_USER="wazuh-wui"
-WAZUH_PASS="YOUR_WUI_PASSWORD"
+WEBHOOK_URL=$(aws ssm get-parameter --name "WEBHOOK_URL" --with-decryption --query "Parameter.Value" --output text)
+WAZUH_USER=$(aws ssm get-parameter --name "WAZUH_USER" --with-decryption --query "Parameter.Value" --output text)
+WAZUH_PASS=$(aws ssm get-parameter --name "WAZUH_PASS" --with-decryption --query "Parameter.Value" --output text)
 INDEXER_URL="https://indexer:9200"
-INDEXER_USER="YOUR_USERNAME"
-INDEXER_PASS="YOUR_PASSWORD"
-SYSLOG_HOST="EIP_NLB_WAZUH"  
+INDEXER_USER=$(aws ssm get-parameter --name "INDEXER_USER" --with-decryption --query "Parameter.Value" --output text)
+INDEXER_PASS=$(aws ssm get-parameter --name "INDEXER_PASS" --with-decryption --query "Parameter.Value" --output text)
+SYSLOG_HOST=$(aws ssm get-parameter --name "SYSLOG_HOST" --with-decryption --query "Parameter.Value" --output text)
 SYSLOG_PORT=514
 NODEPORT_WAZUH=32467  # NodePort exposed for the Wazuh service
 

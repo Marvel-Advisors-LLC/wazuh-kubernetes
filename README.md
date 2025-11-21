@@ -167,7 +167,26 @@ The repository includes helper scripts in wazuh/sops-scripts/ for encrypting, de
 The script produces files suffixed with `_decrypted` (for example `secret_name_decrypted`). Rename each file to remove the `_decrypted` suffix so the filenames match the entries in the kustomization files.
 
 #### 2) Edit a secret
-If you modify a secret, re-encrypt it before committing. The repository provides a pre-commit hook that runs `verify-secrets-dif.sh` to ensure secrets in the repo remain synchronized. If the verification fails, the commit will be blocked until the issue is resolved.
+If you modify a secret, re-encrypt it before committing. The repository provides a pre-commit hook that runs `verify-secrets-dif.sh` to ensure secrets in the repo remain synchronized. If the verification fails, the commit will be blocked until the issue is resolved.  
+
+**Important**: If you modified a secret, encrypt it manually using:  
+```bash
+#If its a yaml file
+sops --encrypt --kms <arn_kms_key_here> file.yaml > file.enc.yaml
+
+#If its a .conf file
+sops --encrypt --kms <arn_kms_key_here> file.conf > file.enc
+
+```
+
+Avoid using the `sops-create-secrets.sh just to modify one secret, otherwise you'll create the secrets again with the same content, but git will detect them as a different files, and you'll add noise to the github repo.
+
+---
+
+## **IMPORTANT:**
+ if you update the credentials of a secret, make sure to also update them on **`AWS Parameters Store too`**.
+
+
 
 #### 3) SOPS creations rules
 We use the `.sops.yaml` file for mantaining proper format on the files, make sure that file exists. 
@@ -1043,7 +1062,7 @@ A lightweight container periodically authenticates to the Wazuh manager API and 
 #### Example checks 
 ```bash
 # auth token
-curl -sk -u "$wazuh_wui:${WAZUH_MANAGER_API_PASS}" "https://wazuh:55000/security/user/authenticate?raw=true"
+TOKEN=$(curl -u "wazuh-wui:${WAZUH_API_PASS}" -k -X POST "https://wazuh:55000/security/user/authenticate?raw=true")
 
 # get cluster status
 curl -k -X GET "https://wazuh:55000/cluster/status" -H  "Authorization: Bearer $TOKEN"
@@ -1082,13 +1101,13 @@ A lightweight container runs periodic API queries against the Wazuh Indexer to v
 #### Example check commands
 ```bash
 # Cluster health
-curl -k -u "${INDEXER_USER}:${INDEXER_PASS}" "https://indexer:9200/_cat/health?v"
+curl -k -u "${INDEXER_USER}:${INDEXER_PASS}" "https://indexer:9200/_cat/health?format=json"
 
 # Node allocations (disk usage)
-curl -k -u "${INDEXER_USER}:${INDEXER_PASS}" "https://indexer:9200/_cat/allocation?v"
+curl -k -u "${INDEXER_USER}:${INDEXER_PASS}" "https://indexer:9200/_cat/allocation?format=json"
 
 # Indices status
-curl -k -u "${INDEXER_USER}:${INDEXER_PASS}" "https://indexer:9200/_cat/indices?v"
+curl -k -u "${INDEXER_USER}:${INDEXER_PASS}" "https://indexer:9200/_cat/indices?format=json"
 
 # Repositories
 curl -k -u "${INDEXER_USER}:${INDEXER_PASS}" "https://indexer:9200/_cat/repositories?v"
