@@ -1098,6 +1098,12 @@ A lightweight container runs periodic API queries against the Wazuh Indexer to v
   - Query: `GET /_cat/repositories?v`  
   - Goal: verify snapshot repositories are present and reachable.
 
+- M365 alerts
+  - Query: `GET /wazuh-alerts-*/_search?q=rule.id:91648&pretty"`
+  - checks if the alert whose rule ID is 91648 has arrived that day, if so, then send an alert, that rule id indicates
+  - This alert triggers when the Wazuh Office 365 integration module encounters three consecutive request failures to the configured tenant. Usually indicates communication or configuration issues with the Microsoft API or tenant settings.
+
+
 #### Example check commands
 ```bash
 # Cluster health
@@ -1111,6 +1117,9 @@ curl -k -u "${INDEXER_USER}:${INDEXER_PASS}" "https://indexer:9200/_cat/indices?
 
 # Repositories
 curl -k -u "${INDEXER_USER}:${INDEXER_PASS}" "https://indexer:9200/_cat/repositories?v"
+
+# M365 alerts
+curl -k -u ${INDEXER_USER}:${INDEXER_PASS} "https://indexer:9200/wazuh-alerts-*/_search?q=rule.id:91648&pretty"
 ```
 To test the /health endpoint, you can manually create an index that will remain in the yellow state, for example:
 
