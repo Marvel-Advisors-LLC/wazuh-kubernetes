@@ -310,7 +310,12 @@ To deploy a cluster on your local environment (like Minikube, Kind or Microk8s) 
 
   
 ## How to safely update wazuh
-  
+---
+## IMPORTANT:
+  If these steps break Wazuh, you can delete the old PVCs and create new ones. You will need to reconfigure the S3 snapshot bucket and snapshot deletion policy, and recreate any users and roles.
+
+---  
+Once said that, we can start.  
 Before updating Wazuh, make sure to create a snapshot of your indexes. You can follow the steps in the [Wazuh Indexer S3 Snapshots Configuration](#wazuh-indexer-s3-snapshots-configuration) section.
 
 Once your snapshot is created, you should provision new PVCs without deleting the existing ones. This approach is recommended because updating Wazuh may also upgrade OpenSearch. If the new Wazuh version fails and you need to revert, OpenSearch will not automatically downgrade, and you cannot change its version via YAML files since it is managed by the Wazuh indexer. This situation can be problematic.
