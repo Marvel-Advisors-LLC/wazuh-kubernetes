@@ -692,6 +692,70 @@ curl -k -u <user>:'<password>' -X POST \
 make sure to replace `<snapshot_repository>, <snapshot_name>` and `<index_name>` with the proper values
 
 ---
+## Wazuh Notifications
+
+To send and receive notifications for Wazuh events:
+
+### 1) Create a notification channel
+
+Go to **Explore → Notifications → Channels** and click **Create channel**.
+
+Provide:
+- Channel name
+- Description
+- Channel type (e.g., Slack, email, webhook)
+- Relevant credentials (e.g., Slack webhook URL)
+
+### 2) Enable notifications for snapshot policies
+
+Go to **Index Management → Snapshot Management → Snapshot Policies**.
+
+Select the policy you want to enable notifications for and modify the **Notifications** section to specify when notifications should be sent and which notification channel to use.
+
+## Wazuh Alert Deletion
+
+Alert deletion is managed through State Management Policies.
+
+### 1) Create a State Management Policy
+
+Go to **Index Management → State Management Policies** and click **Create policy**.
+
+Provide:
+- Policy ID
+- Description
+- Notification Channel (optional)
+
+### 2) Configure ISM templates
+
+Click **Add template** under **ISM templates** and enter an index pattern (e.g., `wazuh-alerts-*`) to apply this policy to future alert indices automatically.
+
+### 3) Create states and transitions
+
+Under **States**, click **Add state** to create an initial state (e.g., `initial`).
+
+Click **Add state** again to create a deletion state (e.g., `delete_alerts`). Click **Add action** and select **Delete**.
+
+Click **Add transition** and configure:
+- **Destination state**: `delete_alerts`
+- **Condition**: Minimum Index Age
+- **Minimum Index Age**: e.g., `46d` for 46 days
+
+### 4) Finalize policy
+
+Set the **Initial State** to `initial` and click **Create**.
+
+### 5) Apply policy to existing indexes
+
+If indexes already exist, you must manually apply the policy:
+
+1. Go to **Index Management → Indexes**
+2. Select the indexes you want to manage
+3. Click **Actions** dropdown and select **Apply policy**
+4. Choose the policy and click **Apply**
+
+The indexes will now appear under **Policy Managed Indexes**.
+
+---
 ## Configuring a domain and SSL cert and for wazuh dashboard  
 We are going to do it using route53, external plugin, an ALB and ingress.   
 
