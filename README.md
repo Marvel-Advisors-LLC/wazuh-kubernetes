@@ -48,6 +48,15 @@ Deploy a Wazuh cluster with a basic indexer and dashboard stack on Kubernetes.
       - [Create snapshot repository](#3-go-to-wazuh---gt--index-management---gt--repositories-and-click-on-create-repositorie)
       - [Create snapshot policy](#4-create-the-snapshot-policy)
       - [Restoring a snapshot](#5-restoring-a-snapshot)
+  - [Wazuh Notifications](#wazuh-notifications)
+    - [1) Create a notification channel](#1-create-a-notification-channel)
+    - [2) Enable notifications for snapshot policies](#2-enable-notifications-for-snapshot-policies)
+  - [Wazuh Alert Deletion](#wazuh-alert-deletion)
+    - [1) Create a State Management Policy](#1-create-a-state-management-policy)
+    - [2) Configure ISM templates](#2-configure-ism-templates)
+    - [3) Create states and transitions](#3-create-states-and-transitions)
+    - [4) Finalize policy](#4-finalize-policy)
+    - [5) Apply policy to existing indexes](#5-apply-policy-to-existing-indexes)
   - [Configuring a domain and SSL cert for wazuh dashboard](#configuring-a-domain-and-ssl-cert-and-for-wazuh-dashboard)
     - [1) Configure and set a domain on Route53](#1-configure-and-set-a-domain-on-route53)
     - [2) Install the external-dns plugin](#2-install-the-dns-external-plugin)
@@ -137,6 +146,7 @@ wazuh-kubernetes/wazuh/indexer_stack/wazuh-indexer/cluster/indexer-sts.yaml
 make sure these file have the exact same config for the requested resources.  
 
 ### 2) Wazuh manager:  
+
 ```
 master:
 wazuh-kubernetes/envs/eks/wazuh-master-resources.yaml
