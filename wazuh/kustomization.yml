@@ -71,10 +71,12 @@ resources:
   - wazuh_managers/wazuh_conf/sentinelone-rules-configmap.yaml
   - wazuh_managers/wazuh_conf/local_rules_configmap.yaml
   - wazuh_managers/wazuh_conf/misp-rules-configmap.yaml
-#  - wazuh_managers/wazuh_conf/entrypoint-integrations-cm.yaml
+  - wazuh_managers/wazuh_conf/entrypoint-integrations-cm.yaml
   - wazuh_managers/wazuh_conf/wazuh-template-json-configmap.yaml
 #  - wazuh_managers/wazuh-integrations/custom-iris-configmap.yaml
 #  - wazuh_managers/wazuh-integrations/custom-misp-configmap.yaml
+  - wazuh_managers/wazuh-integrations/n8n-cm.yaml
+  - wazuh_managers/wazuh-integrations/n8n-py-cm.yaml
   - wazuh_managers/wazuh_conf/syslog-ng-secrets/ca.yaml
   - wazuh_managers/wazuh_conf/syslog-ng-secrets/tlskey.yaml
   - wazuh_managers/wazuh_conf/syslog-ng-secrets/tlscrt.yaml

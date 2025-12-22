@@ -48,9 +48,10 @@ Deploy a Wazuh cluster with a basic indexer and dashboard stack on Kubernetes.
       - [Create snapshot repository](#3-go-to-wazuh---gt--index-management---gt--repositories-and-click-on-create-repositorie)
       - [Create snapshot policy](#4-create-the-snapshot-policy)
       - [Restoring a snapshot](#5-restoring-a-snapshot)
-  - [Wazuh Notifications](#wazuh-notifications)
+    - [Wazuh Notifications](#wazuh-notifications)
     - [1) Create a notification channel](#1-create-a-notification-channel)
     - [2) Enable notifications for snapshot policies](#2-enable-notifications-for-snapshot-policies)
+  - [Wazuh and n8n integration](#wazuh-and-n8n-integration)
   - [Wazuh Alert Deletion](#wazuh-alert-deletion)
     - [1) Create a State Management Policy](#1-create-a-state-management-policy)
     - [2) Configure ISM templates](#2-configure-ism-templates)
@@ -308,7 +309,9 @@ To deploy a cluster on your local environment (like Minikube, Kind or Microk8s) 
         |    │   └── worker.conf
         |    └── wazuh-integrations
         |    |   ├── custom-iris-configmap.yaml
-        |    |   ├── custom-misp-configmap.yaml       
+        |    |   ├── custom-misp-configmap.yaml   
+        |    |   ├── n8n-cm.yaml
+        |    |   ├── n8n-py-cm.yaml                   
         |    |   └── misp-script.py
         |    ├── syslog-svc.yaml             
         |    ├── wazuh-cluster-svc.yaml        
@@ -700,6 +703,47 @@ curl -k -u <user>:'<password>' -X POST \
       }'
 ```  
 make sure to replace `<snapshot_repository>, <snapshot_name>` and `<index_name>` with the proper values
+
+---
+## Wazuh and n8n integration
+
+
+This integration enables sending Wazuh alerts to n8n, where a SOC Analyst AI agent can classify them as false positives or identify critical alerts that require reporting to clients.
+
+### Configuration Files
+
+You need to configure the following files:
+
+```bash
+- entrypoint-integrations-cm.yaml
+- master.conf
+- worker.conf
+- n8n-cm.yaml
+- n8n-py-cm.yaml
+- wazuh-master-sts.yaml
+- wazuh-worker-sts.yaml
+```
+
+### Setup Instructions
+
+Create and mount the scripts `custom-n8n` and `custom-n8n.py` in the `/var/ossec/integrations` folder with permissions `750` and ownership `root:wazuh`. Use `entrypoint-integrations-cm.yaml` to mount them at `/wazuh-config-mount/integrations/`, where Wazuh automatically moves them to the integrations folder.
+
+In `ossec.conf`, always use the `custom-<integration-name>` format. For example:
+
+```html
+  <!-- n8n integration -->
+  <integration>
+    <name>custom-n8n</name>
+    <hook_url><HOOK_URL></hook_url>
+    <level>8</level>
+    <alert_format>json</alert_format>
+  </integration>
+```
+
+### Implementation Notes
+
+The scripts are based on the default Shuffle integration scripts provided by Wazuh, with modifications to work with n8n.
+
 
 ---
 ## Wazuh Notifications
