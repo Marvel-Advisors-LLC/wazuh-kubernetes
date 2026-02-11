@@ -9,7 +9,15 @@ INDEXER_USER=$(aws ssm get-parameter --name "INDEXER_USER" --with-decryption --q
 INDEXER_PASS=$(aws ssm get-parameter --name "INDEXER_PASS" --with-decryption --query "Parameter.Value" --output text)
 SYSLOG_HOST=$(aws ssm get-parameter --name "SYSLOG_HOST" --with-decryption --query "Parameter.Value" --output text)
 SYSLOG_PORT=514
-NODEPORT_WAZUH=32467  # NodePort exposed for the Wazuh service
+
+# ================= GET WAZUH API NODEPORT DYNAMICALLY =================
+NODEPORT_WAZUH=$(/usr/local/bin/kubectl get svc wazuh -n wazuh \
+  -o jsonpath='{.spec.ports[?(@.port==55000)].nodePort}' 2>/dev/null)
+
+if [ -z "$NODEPORT_WAZUH" ]; then
+    send_to_chat "❌ Error: could not get Wazuh NodePort from service"
+    exit 1
+fi
 
 # ================= SET ABSOLUTE PATH =================
 export PATH=/usr/local/bin:/usr/bin:/bin

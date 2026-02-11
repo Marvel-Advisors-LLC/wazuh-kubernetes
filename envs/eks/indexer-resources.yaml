@@ -17,8 +17,8 @@ spec:
         - name: wazuh-indexer
           resources:
             requests:
-              cpu: 666m
-              memory: 4Gi
+              cpu: 500m
+              memory: 3500Mi
             limits:
               cpu: 1
               memory: 4Gi

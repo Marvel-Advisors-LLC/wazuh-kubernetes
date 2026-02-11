@@ -70,8 +70,8 @@ spec:
           image: 'wazuh/wazuh-indexer:4.12.0'
           resources:
             requests:
-              cpu: 666m
-              memory: 4Gi
+              cpu: 500m
+              memory: 3500Mi
             limits:
               cpu: 1 # originally on 500m
               memory: 4Gi # originally 1564Mi
