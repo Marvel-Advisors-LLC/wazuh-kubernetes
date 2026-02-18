@@ -13,7 +13,9 @@ metadata:
   name: wazuh-storage
 provisioner: kubernetes.io/aws-ebs
 parameters:
-  encrypted: 'true'
-  type: gp2
+  type: gp3
+  encrypted: "true"
+  iops: "3000"
+  throughput: "125" # TODO: Calculate the right throughput for production
 volumeBindingMode: WaitForFirstConsumer
-reclaimPolicy: Retain  # Useful in case you delete the PersistentVolumeClaim
+reclaimPolicy: Retain # TODO: Si se usa en produccion ponerle retain 

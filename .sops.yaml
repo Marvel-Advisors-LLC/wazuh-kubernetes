@@ -1,16 +1,20 @@
 creation_rules:
-  # Todos los YAML bajo wazuh/
+  # All YAML files under wazuh/
   - path_regex: wazuh/.*\.yaml$
     encrypted_regex: ^(data)$
     yaml_keep_line_breaks: true
 
-  # Todos los YAML bajo wazuh_managers/
+  # All YAML files under wazuh_managers/
   - path_regex: wazuh_managers/.*\.yaml$
     encrypted_regex: ^(data)$
     yaml_keep_line_breaks: true
 
-  # Archivos XML (.conf) bajo wazuh_managers/
+  # .conf files under wazuh_managers/ (treated as binary)
   - path_regex: wazuh_managers/.*\.conf$
     encrypted_suffix: ".enc"
-    # No aplicar regex de YAML, tratar como binario/texto
+    input_type: "binary"
+
+  # TLS files (.key and .crt) under syslog-ng-secrets/
+  - path_regex: wazuh_managers/wazuh_conf/syslog-ng-secrets/.*\.(key|crt)$
+    encrypted_suffix: ".enc"
     input_type: "binary"

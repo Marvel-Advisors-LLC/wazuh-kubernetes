@@ -22,3 +22,4 @@ spec:
       port: 514
       protocol: TCP
       targetPort: 514
+      nodePort: 31514

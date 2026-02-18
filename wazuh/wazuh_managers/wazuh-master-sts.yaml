@@ -25,58 +25,9 @@ spec:
       labels:
         app: wazuh-manager
         node-type: master
-        syslog-ng: "true"
       name: wazuh-manager-master
-    spec:  
-      volumes:  
-        - name: custom-misp-script  #########START MY CONFIG##############
-          configMap:
-            name: custom-misp
-        - name: custom-iris-script    
-          configMap:
-            name: custom-iris    
-        - name: entrypoint-sh-configmap
-          configMap:
-            name: entrypointsh   
-            defaultMode: 0755  # Para que sea ejecutable
-        - name: n8n-py-integration-cm
-          configMap:
-            name: n8n-py-integration     
-        - name: n8n-integration-cm
-          configMap:
-            name: n8n-integration                                                             
-        - name: sentinelone-rules 
-          configMap:
-            name: sentinelone-rules-configmap 
-        - name: sentinelone-decoders
-          configMap:
-            name: sentinelone-decoders-configmap  
-        - name: misp-rules
-          configMap:
-            name: misp-rules-configmap
-        - name: local-rules
-          configMap:
-            name: local-rules-configmap
-        - name: wazuh-template-json
-          configMap:
-            name: wazuh-template-json-configmap
-        - name: syslog-ng-config-volume
-          configMap:
-            name: syslog-ng-config      
-        - name: syslog-ng-tlskey-volume
-          configMap:
-            name: syslog-ng-tlskey
-        - name: syslog-ng-tlscrt-volume
-          configMap:
-            name: syslog-ng-tlscrt
-        - name: syslog-ng-ca-volume
-          configMap:
-            name: syslog-ng-ca     
-        - name: syslog-ng-tls-writable
-          emptyDir: {}                
-        - name: syslog-ng-entrypoint-volume
-          configMap:
-            name: syslog-ng-entrypoint                              ########ENDS MY CONFIG######               
+    spec:
+      volumes:
         - name: config
           configMap:
             name: wazuh-conf
@@ -85,12 +36,32 @@ spec:
             secretName: indexer-certs
         - name: wazuh-authd-pass
           secret:
-            secretName: wazuh-authd-pass
+            secretName: wazuh-authd-pass         
+        - name: sentinelone-decoders  ############
+          configMap:
+            name: sentinelone-decoders-configmap                
+        - name: sentinelone-rules 
+          configMap:
+            name: sentinelone-rules-configmap                         
+        - name: wazuh-filebeat-configmap
+          configMap:
+            name: wazuh-filebeat-conf  
+        - name: custom-rules-and-decoders-cm
+          configMap:
+            name: custom-rules-and-decoders
+            defaultMode: 0660  
+        - name: integrations-cm-volume
+          configMap:
+            name: integrations-cm
+            defaultMode: 0750
+        - name: syslog-ng-cm-volume
+          configMap:
+            name: syslog-ng-cm    
       securityContext:
-        fsGroup: 101                                          
+        fsGroup: 101
       containers:
         - name: wazuh-manager
-          image: 'wazuh/wazuh-manager:4.12.0'
+          image: 'wazuh/wazuh-manager:4.14.2'
           resources:
             limits:
               cpu: 1
@@ -99,45 +70,6 @@ spec:
             capabilities:
               add: ["SYS_CHROOT"]
           volumeMounts:
-            - name: config   #########START MY CONFIG###############
-              mountPath: /etc/filebeat/filebeat.yml 
-              subPath: filebeat.yml
-            # - name: custom-iris-script
-            #   mountPath: /wazuh-config-mount/integrations/custom-wazuh_iris.py
-            #   subPath: custom-wazuh_iris.py
-            - name: entrypoint-sh-configmap
-              mountPath: /usr/local/bin/entrypoint.sh
-              subPath: entrypoint.sh
-            # - name: custom-misp-script
-            #   mountPath: /wazuh-config-mount/integrations/custom-misp.py
-            #   subPath: custom-misp.py
-            #   readOnly: true 
-            - name: n8n-py-integration-cm
-              mountPath: /wazuh-config-mount/integrations/custom-n8n.py
-              subPath: custom-n8n.py         
-            - name: n8n-integration-cm
-              mountPath: /wazuh-config-mount/integrations/custom-n8n
-              subPath: custom-n8n                                                                                   
-            - name: sentinelone-rules
-              mountPath: /var/ossec/etc/rules/sentinelone_rules.xml
-              subPath: sentinelone_rules.xml
-              readOnly: true
-            - name: sentinelone-decoders
-              mountPath: /var/ossec/etc/decoders/sentinelone_decoders.xml
-              subPath: sentinelone_decoders.xml
-              readOnly: true 
-            - name: misp-rules
-              mountPath: /var/ossec/etc/rules/misp-rules.xml
-              subPath: misp_rules.xml 
-              readOnly: true
-            - name: local-rules
-              mountPath: /var/ossec/etc/rules/local_rules.xml
-              subPath: local_rules.xml               
-              readOnly: true
-            - name: wazuh-template-json
-              mountPath: /etc/filebeat/wazuh-template.json
-              subPath: wazuh-template.json               
-              readOnly: true                      #######ENDS MY CONFIG###############                       
             - name: config
               mountPath: /wazuh-config-mount/etc/ossec.conf
               subPath: master.conf
@@ -191,10 +123,27 @@ spec:
             - name: wazuh-manager-master
               mountPath: /var/lib/filebeat
               subPath: filebeat/var/lib/filebeat
-          lifecycle:
-            postStart:
-              exec:
-                command: ["/bin/bash", "-c", "/usr/local/bin/entrypoint.sh"]              
+            - name: integrations-cm-volume ##### STARTS MY CONFIG ###########################
+              mountPath: /wazuh-config-mount/integrations/custom-n8n-cm.py
+              subPath: custom-n8n-cm.py         
+            - name: integrations-cm-volume
+              mountPath: /wazuh-config-mount/integrations/custom-n8n-cm
+              subPath: custom-n8n-cm
+            - name: wazuh-filebeat-configmap
+              mountPath: /etc/filebeat/filebeat.yml
+              subPath: filebeat.yml        
+            - name: custom-rules-and-decoders-cm
+              mountPath: /wazuh-config-mount/etc/decoders/sentinelone_decoders.xml
+              subPath: sentinelone_decoders.xml
+              readOnly: true                
+            - name: custom-rules-and-decoders-cm
+              mountPath: /wazuh-config-mount/etc/rules/sentinelone_rules.xml
+              subPath: sentinelone_rules.xml
+              readOnly: true
+            - name: custom-rules-and-decoders-cm
+              mountPath: /wazuh-config-mount/etc/rules/local_rules.xml
+              subPath: local_rules.xml
+              readOnly: true                                            
           ports:
             - containerPort: 1515
               name: registration
@@ -203,7 +152,7 @@ spec:
             - containerPort: 55000
               name: api
             - containerPort: 514
-              name: syslog-events               
+              name: syslog-events                 
           env:
             - name: INDEXER_URL
               value: 'https://indexer:9200'
@@ -217,21 +166,6 @@ spec:
                 secretKeyRef:
                   name: indexer-cred
                   key: password
-            - name: M365_TENANT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: m365-cred-secret
-                  key: TENANT_ID
-            - name: M365_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: m365-cred-secret
-                  key: CLIENT_ID
-            - name: M365_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: m365-cred-secret
-                  key: CLIENT_SECRET                                      
             - name: FILEBEAT_SSL_VERIFICATION_MODE
               value: 'full'
             - name: SSL_CERTIFICATE_AUTHORITIES
@@ -255,6 +189,21 @@ spec:
                 secretKeyRef:
                   name: wazuh-cluster-key
                   key: key
+            - name: M365_TENANT_ID  ################
+              valueFrom:
+                secretKeyRef:
+                  name: m365-cred-secret
+                  key: TENANT_ID
+            - name: M365_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: m365-cred-secret
+                  key: CLIENT_ID
+            - name: M365_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: m365-cred-secret
+                  key: CLIENT_SECRET                    
         # - name: syslog-ng
         #   image: balabit/syslog-ng:4.8.0
         #   securityContext:
@@ -283,7 +232,7 @@ spec:
         #   command: ["/bin/sh", "/usr/local/bin/entrypoint.sh"]                             
         #   ports:       
         #     - containerPort: 6514
-        #       name: syslog-tls                  
+        #       name: syslog-tls                     
   volumeClaimTemplates:
     - metadata:
         name: wazuh-manager-master

@@ -14,21 +14,33 @@ FILES=$(find "$SECRET_DIR" -type f \( \
     \( -name "*.yaml" -path "*/secrets/*" -o \
        -path "*/cron_job/secrets/*" -o \
        -path "*/wazuh_managers/wazuh_conf/syslog-ng-secrets/*" \) -o \
-    -name "worker.conf" -o -name "master.conf" \) ! -name "*.enc.yaml"
+    -name "worker.conf" -o \
+    -name "master.conf" -o \
+    -name "*.crt" -o \
+    -name "*.key" \) ! -name "*.enc.yaml" ! -name "*.enc"
 )
+
+IFS=$'\n'
 
 for f in $FILES; do
     case "$f" in
-        *.conf) ENC="${f}.enc" ;;       # only .enc for .conf files
-        *.yaml) ENC="${f%.yaml}.enc.yaml" ;;  # .enc.yaml for regular YAML files
-        *) echo "Skipping unknown file $f"; continue ;;
+        *.conf|*.crt|*.key)
+            ENC="${f}.enc"
+            ;;
+        *.yaml)
+            ENC="${f%.yaml}.enc.yaml"
+            ;;
+        *)
+            echo "Skipping unknown file $f"
+            continue
+            ;;
     esac
 
     echo "Encrypting $f -> $ENC"
     sops --encrypt --kms "$KMS_ARN" "$f" > "$ENC"
 done
 
-echo "✅ All secrets were encrypted correctly. Encrypted files have the .enc.yaml suffix."
+echo "✅ All secrets were encrypted correctly."
 
 
 

@@ -24,16 +24,18 @@ spec:
         app: wazuh-indexer
       name: wazuh-indexer
     spec:
+      securityContext:
+        fsGroup: 1000
+      # Set the wazuh-indexer volume permissions so the wazuh-indexer user can use it
       volumes:
         - name: indexer-certs
           secret:
             secretName: indexer-certs
+            defaultMode: 0600
         - name: indexer-conf
           configMap:
             name: indexer-conf
-        - name: snapshots-volume  
-          persistentVolumeClaim:
-            claimName: snapshots-pvc  # ← We mount the PVC created manually               
+            defaultMode: 0600
       initContainers:
         - name: volume-mount-hack
           image: busybox
@@ -44,19 +46,13 @@ spec:
             limits:
               cpu: 100m
               memory: 256Mi
-          command: # Fix permissions on the mounted volumes, SNAPSHOTS and wazuh-indexer data
+          command:
             - sh
-            - -c
-            - |            
-              echo ">>> Fixing permissions on /var/lib/wazuh-indexer..."
-              chown -R 1000:1000 /var/lib/wazuh-indexer || true
-              echo ">>> Fixing permissions on /mnt/snapshots..."
-              chown -R 1000:1000 /mnt/snapshots || true            
+            - '-c'
+            - 'chown -R 1000:1000 /var/lib/wazuh-indexer'
           volumeMounts:
             - name: wazuh-indexer
               mountPath: /var/lib/wazuh-indexer
-            - name: snapshots-volume
-              mountPath: /mnt/snapshots ########################################################
         - name: increase-the-vm-max-map-count
           image: busybox
           command:
@@ -64,10 +60,10 @@ spec:
             - -w
             - vm.max_map_count=262144
           securityContext:
-            privileged: true           
+            privileged: true
       containers:
         - name: wazuh-indexer
-          image: 'wazuh/wazuh-indexer:4.12.0'
+          image: 'wazuh/wazuh-indexer:4.14.2'
           resources:
             requests:
               cpu: 500m
@@ -81,7 +77,7 @@ spec:
             - name: CLUSTER_NAME
               value: wazuh
             - name: NETWORK_HOST
-              value: "0.0.0.0"            
+              value: "0.0.0.0"
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
@@ -95,7 +91,7 @@ spec:
             - name: DISABLE_INSTALL_DEMO_CONFIG
               value: 'true'
             - name: OPENSEARCH_PATH_CONF  # Config for S3 bucket snapshots
-              value: "/usr/share/wazuh-indexer"     
+              value: "/usr/share/wazuh-indexer/config"     
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
@@ -105,71 +101,78 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: wazuh-s3-creds
-                  key: secret_access_key                         
+                  key: secret_access_key                    
           securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
             capabilities:
               add: ["SYS_CHROOT"]
           volumeMounts:
             - name: wazuh-indexer
               mountPath: /var/lib/wazuh-indexer
-            - name: snapshots-volume                # <--- New mount for snapshots
-              mountPath: /mnt/snapshots
             - name: indexer-certs
-              mountPath: /usr/share/wazuh-indexer/certs/node-key.pem
+              mountPath: /usr/share/wazuh-indexer/config/certs/node-key.pem
               subPath: node-key.pem
               readOnly: true
             - name: indexer-certs
-              mountPath: /usr/share/wazuh-indexer/certs/node.pem
+              mountPath: /usr/share/wazuh-indexer/config/certs/node.pem
               subPath: node.pem
               readOnly: true
             - name: indexer-certs
-              mountPath: /usr/share/wazuh-indexer/certs/root-ca.pem
+              mountPath: /usr/share/wazuh-indexer/config/certs/root-ca.pem
               subPath: root-ca.pem
               readOnly: true
             - name: indexer-certs
-              mountPath: /usr/share/wazuh-indexer/certs/admin.pem
+              mountPath: /usr/share/wazuh-indexer/config/certs/admin.pem
               subPath: admin.pem
               readOnly: true
             - name: indexer-certs
-              mountPath: /usr/share/wazuh-indexer/certs/admin-key.pem
+              mountPath: /usr/share/wazuh-indexer/config/certs/admin-key.pem
               subPath: admin-key.pem
               readOnly: true
             - name: indexer-conf
-              mountPath: /usr/share/wazuh-indexer/opensearch.yml
+              mountPath: /usr/share/wazuh-indexer/config/opensearch.yml
               subPath: opensearch.yml
               readOnly: true
             - name: indexer-conf
-              mountPath: /usr/share/wazuh-indexer/opensearch-security/internal_users.yml
+              mountPath: /usr/share/wazuh-indexer/config/opensearch-security/internal_users.yml
               subPath: internal_users.yml
               readOnly: true
-          command:  #Install the S3 plugin if not installed yet, then start normally
+          command:
             - sh
             - -c
             - |
+              set -e
+              
+              # Install S3 plugin if not installed
               if ! /usr/share/wazuh-indexer/bin/opensearch-plugin list | grep -q repository-s3; then
-                echo "Installing repository-s3 plugin..."
-                echo "y" | /usr/share/wazuh-indexer/bin/opensearch-plugin install repository-s3
+                  echo "Installing repository-s3 plugin..."
+                  /usr/share/wazuh-indexer/bin/opensearch-plugin install --batch repository-s3
               fi
-
-              # Crear el keystore si no existe
-              if [ ! -f /usr/share/wazuh-indexer/opensearch.keystore ] || ! /usr/share/wazuh-indexer/bin/opensearch-keystore list > /dev/null 2>&1; then
+              
+              # Create keystore if it doesn't exist
+              if [ ! -f /usr/share/wazuh-indexer/config/opensearch.keystore ]; then
                   echo "Creating OpenSearch keystore..."
                   /usr/share/wazuh-indexer/bin/opensearch-keystore create
-              fi              
-
-              if ! /usr/share/wazuh-indexer/bin/opensearch-keystore list | grep -q s3.client.default.access_key; then
-                echo -n "$AWS_ACCESS_KEY_ID" | /usr/share/wazuh-indexer/bin/opensearch-keystore add s3.client.default.access_key --stdin
               fi
-              if ! /usr/share/wazuh-indexer/bin/opensearch-keystore list | grep -q s3.client.default.secret_key; then
-                echo -n "$AWS_SECRET_ACCESS_KEY" | /usr/share/wazuh-indexer/bin/opensearch-keystore add s3.client.default.secret_key --stdin
-              fi   
-
-              chown wazuh-indexer:wazuh-indexer /usr/share/wazuh-indexer/opensearch.keystore
-              chmod 660 /usr/share/wazuh-indexer/opensearch.keystore
-
-
-              # Start original entrypoint
-              exec /usr/share/wazuh-indexer/bin/systemd-entrypoint              
+              
+              # Add AWS credentials to keystore if not present
+              if ! /usr/share/wazuh-indexer/bin/opensearch-keystore list 2>/dev/null | grep -q s3.client.default.access_key; then
+                  echo "Adding AWS access key to keystore..."
+                  echo -n "$AWS_ACCESS_KEY_ID" | /usr/share/wazuh-indexer/bin/opensearch-keystore add s3.client.default.access_key --stdin
+              fi
+              
+              if ! /usr/share/wazuh-indexer/bin/opensearch-keystore list 2>/dev/null | grep -q s3.client.default.secret_key; then
+                  echo "Adding AWS secret key to keystore..."
+                  echo -n "$AWS_SECRET_ACCESS_KEY" | /usr/share/wazuh-indexer/bin/opensearch-keystore add s3.client.default.secret_key --stdin
+              fi
+              
+              # Set proper permissions (ruta correcta)
+              chown wazuh-indexer:wazuh-indexer /usr/share/wazuh-indexer/config/opensearch.keystore
+              chmod 660 /usr/share/wazuh-indexer/config/opensearch.keystore
+              
+              # Start OpenSearch with original entrypoint
+              exec /usr/share/wazuh-indexer/bin/systemd-entrypoint           
           ports:
             - containerPort: 9200
               name: indexer-rest

@@ -1,0 +1,131 @@
+<!--
+  Wazuh - SentinelOne Decoders (fixed)
+-->
+
+<decoder name="sentinelone">
+  <prematch>sentinel -  CEF:\d\|SentinelOne\|</prematch>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">Mgmt\|\S+\|\d+\|(\.+) -</regex>
+  <order>log_message1</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">Mgmt\|\S+\|\d+\|(\.+)\|\d+</regex>
+  <order>log_message2</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">Mgmt\|\S+\|\d+\|\.+ - Machine (\.+)\|\d+</regex>
+  <order>endpoint</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">osName=(\.+) rt=</regex>
+  <order>operating_system</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">fileHash=(\S+)</regex>
+  <order>file_hash</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">filePath=(\.+) siteId=</regex>
+  <order>file_path</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">activityID=(\S+)</regex>
+  <order>activity_id</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">suser=(\S+)</regex>
+  <order>suser</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">siteId=(\S+)</regex>
+  <order>site_id</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">siteName=(\.+) accountId</regex>
+  <order>site_name</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">accountId=(\S+)</regex>
+  <order>account_id</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">accountName=(\.+) notificationScope</regex>
+  <order>account_name</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">groupId=(\S+)</regex>
+  <order>group_id</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">groupName=(\.+) agentId</regex>
+  <order>group_name</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">agentId=(\S+)</regex>
+  <order>agent_id</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">userId=(\S+)</regex>
+  <order>user_id</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">threadId=(\S+)</regex>
+  <order>thread_id</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">ip_address=(\d+\.\d+\.\d+\.\d+)</regex>
+  <order>ip_address</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">confidence_level=(\w+)</regex>
+  <order>confidence_level</order>
+</decoder>
+
+<decoder name="sentinelone">
+  <parent>sentinelone</parent>
+  <regex offset="after_parent">storyline=(\S+)</regex>
+  <order>storyline</order>
+</decoder>
+
+<decoder name="test-syslog">
+    <prematch>testhost</prematch>
+</decoder>

@@ -9,9 +9,10 @@ _meta:
 # Define your internal users here
 
 ## Demo users
-
+#TODO: Cambiar password de la API
+# original addmin: $2y$12$K/SpwjtB.wOHJ/Nc6GVRDuc1h0rM1DfvziFRNPtk27P.c4yDr9njO
 admin:
-  hash: "$2y$12$qphBbs7.NZhtPk4XjTfY2O0lEzSzZeifi7R7qbylq9oKRSCgzHyO2"
+  hash: "$2y$12$6Wu9nMtquuxJ1XnGrCXsHuGVFnprhdhXPcNKZdVMepjqj4pMmgzAe"
   reserved: true
   backend_roles:
   - "admin"

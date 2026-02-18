@@ -2,6 +2,215 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.14.2]
+
+### Added
+
+- None
+
+### Changed
+
+- None
+
+### Fixed
+
+- None
+
+### Deleted
+
+- None
+
+## [4.14.1]
+
+### Added
+
+- None
+
+### Changed
+
+- None
+
+### Fixed
+
+- None
+
+### Deleted
+
+- None
+
+## [4.14.0]
+
+### Added
+
+- None
+
+### Changed
+
+- Remove dashboard chat setting ([#1209](https://github.com/wazuh/wazuh-kubernetes/pull/1209))
+- Rollback data source setting ([#1188](https://github.com/wazuh/wazuh-kubernetes/pull/1188))
+- Dashboard settings added ([#1187](https://github.com/wazuh/wazuh-kubernetes/pull/1187))
+
+### Fixed
+
+- Add new config path and new permission for conf and certs files ([#1152](https://github.com/wazuh/wazuh-kubernetes/pull/1152))
+
+### Deleted
+
+- None
+
+## [4.13.1]
+
+### Added
+
+- None
+
+### Changed
+
+- None
+
+### Fixed
+
+- None
+
+### Deleted
+
+- None
+
+## [4.13.0]
+
+### Added
+
+- Add opensearch_dashboard.yml parameters.  ([#1172](https://github.com/wazuh/wazuh-kubernetes/pull/1172))
+- Add missing malicious-ioc ruleset lists ([#1092](https://github.com/wazuh/wazuh-kubernetes/pull/1092))
+- Integrate bumper script via GitHub action. ([#1086](https://github.com/wazuh/wazuh-kubernetes/pull/1086))
+- Added repository_bumper script. ([#1039](https://github.com/wazuh/wazuh-kubernetes/pull/1039))
+
+### Changed
+
+- Syscollector configuration change ([#1181](https://github.com/wazuh/wazuh-kubernetes/pull/1181))
+
+### Fixed
+
+- Change ports order ([#1183](https://github.com/wazuh/wazuh-kubernetes/pull/1183))
+
+### Deleted
+
+- Remove 'stable' branch ocurrencies ([#1014](https://github.com/wazuh/wazuh-kubernetes/pull/1014))
+
+## [4.12.0]
+
+### Added
+
+- None
+
+### Changed
+
+- Change VERSION file format ([#985](https://github.com/wazuh/wazuh-kubernetes/pull/985)) \- (VERSION file)
+
+### Fixed
+
+- None
+
+### Deleted
+
+- None
+
+## [4.11.2]
+
+### Added
+
+- None
+
+### Changed
+
+- None
+
+### Fixed
+
+- None
+
+### Deleted
+
+- None
+
+## [4.11.1]
+
+### Added
+
+- None
+
+### Changed
+
+- None
+
+### Fixed
+
+- None
+
+### Deleted
+
+- None
+
+## [4.11.0]
+
+### Added
+
+- None
+
+### Changed
+
+- None
+
+### Fixed
+
+- None
+
+### Deleted
+
+- None
+
+## [4.10.1]
+
+### Added
+
+- None
+
+### Changed
+
+- None
+
+### Fixed
+
+- None
+
+### Deleted
+
+- None
+
+## [4.10.0]
+
+### Added
+
+- None
+
+### Changed
+
+- None
+
+### Fixed
+
+- Add labelSelector ([#872](https://github.com/wazuh/wazuh-kubernetes/pull/872)) \- (Wazuh worker STS)
+
+### Deleted
+
+- None
+
+## [4.9.2]
+
+### Added
+
+- Update to Wazuh version [4.9.2](https://github.com/wazuh/wazuh/blob/v4.9.2/CHANGELOG.md#v492)
+
 ## [4.9.1]
 
 ### Added

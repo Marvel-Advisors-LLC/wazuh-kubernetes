@@ -192,7 +192,7 @@ If you modify a secret, re-encrypt it before committing. The repository provides
 sops --encrypt --kms <arn_kms_key_here> file.yaml > file.enc.yaml
 
 #If its a .conf file
-sops --encrypt --kms <arn_kms_key_here> file.conf > file.enc
+sops --encrypt --kms <arn_kms_key_here> file.conf > file.conf.enc
 
 ```
 
@@ -322,6 +322,11 @@ To deploy a cluster on your local environment (like Minikube, Kind or Microk8s) 
         └───kustomization.yml   
 
   
+## Change password
+Read this doc:  
+https://documentation.wazuh.com/current/deployment-options/deploying-with-kubernetes/kubernetes-deployment.html#change-the-password-of-wazuh-users  
+And also if you change the admin password, update it from the `filebeat.yml`
+
 ## How to safely update wazuh
 ---
 ## IMPORTANT:

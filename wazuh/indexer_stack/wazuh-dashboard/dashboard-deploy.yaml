@@ -32,7 +32,7 @@ spec:
             secretName: dashboard-certs
       containers:
         - name: wazuh-dashboard
-          image: 'wazuh/wazuh-dashboard:4.12.0'
+          image: 'wazuh/wazuh-dashboard:4.14.2'
           resources:
             limits:
               cpu: 500m
@@ -82,10 +82,6 @@ spec:
                   key: password
             - name: SERVER_SSL_ENABLED
               value: "false"
-            - name: SERVER_SSL_CERTIFICATE
-              value: /usr/share/wazuh-dashboard/certs/cert.pem
-            - name: SERVER_SSL_KEY
-              value: /usr/share/wazuh-dashboard/certs/key.pem
             - name: WAZUH_API_URL
               value: https://wazuh-manager-master-0.wazuh-cluster
             - name: API_USERNAME

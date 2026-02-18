@@ -6,16 +6,12 @@ metadata:
 data:
   entrypoint.sh: |
     #!/bin/bash
-    # cp -r /wazuh-config-mount/integrations/custom-wazuh_iris.py /var/ossec/integrations/custom-wazuh_iris.py
-    # cp -r /wazuh-config-mount/integrations/custom-misp.py /var/ossec/integrations/custom-wazuh_iris.py
-    cp -r /wazuh-config-mount/integrations/custom-n8n.py /var/ossec/integrations/custom-n8n.py
-    cp -r /wazuh-config-mount/integrations/custom-n8n /var/ossec/integrations/custom-n8n
-    # chown root:wazuh /var/ossec/integrations/custom-wazuh_iris.py
-    # chown root:wazuh /var/ossec/integrations/custom-misp.py
-    chown root:wazuh /var/ossec/integrations/custom-n8n.py
-    chown root:wazuh /var/ossec/integrations/custom-n8n
-    chmod 750 /var/ossec/integrations/custom-n8n.py
-    chmod 750 /var/ossec/integrations/custom-n8n
-    # chmod 750 /var/ossec/integrations/custom-misp.py
-    # chmod 750 /var/ossec/integrations/custom-wazuh_iris.py
+    cp -r /wazuh-config-mount/integrations/custom-n8n.py /var/ossec/integrations/n8n-cm.py
+    cp -r /wazuh-config-mount/integrations/custom-n8n /var/ossec/integrations/n8n-cm
+    chown root:wazuh /var/ossec/integrations/n8n-cm.py
+    chown root:wazuh /var/ossec/integrations/n8n-cm
+    chmod 750 /var/ossec/integrations/n8n-cm.py
+    chmod 750 /var/ossec/integrations/n8n-cm
+    chown wazuh:wazuh /var/ossec/etc/decoders/sentinelone_decoders.xml
+    chmod 660 /var/ossec/etc/decoders/sentinelone_decoders.xml
     
