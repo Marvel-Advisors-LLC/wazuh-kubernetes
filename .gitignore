@@ -36,6 +36,7 @@ wazuh/certs/indexer_cluster/*.srl
 # But allow versioning the encrypted ones
 !/wazuh/cron_job/secrets/*.enc.yaml
 !/wazuh/wazuh_managers/wazuh_conf/syslog-ng-secrets/*.enc.yaml
+!/wazuh/secrets/*.enc.yaml
 
 # Wazuh configuration files with sensitive data
 wazuh/wazuh_managers/wazuh_conf/master.conf

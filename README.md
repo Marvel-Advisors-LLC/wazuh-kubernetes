@@ -58,6 +58,7 @@ Deploy a Wazuh cluster with a basic indexer and dashboard stack on Kubernetes.
     - [3) Create states and transitions](#3-create-states-and-transitions)
     - [4) Finalize policy](#4-finalize-policy)
     - [5) Apply policy to existing indexes](#5-apply-policy-to-existing-indexes)
+    - [6) Configure notification channel](#6-configure-notification-channel)
   - [Configuring a domain and SSL cert for wazuh dashboard](#configuring-a-domain-and-ssl-cert-and-for-wazuh-dashboard)
     - [1) Configure and set a domain on Route53](#1-configure-and-set-a-domain-on-route53)
     - [2) Install the external-dns plugin](#2-install-the-dns-external-plugin)
@@ -757,13 +758,7 @@ To send and receive notifications for Wazuh events:
 
 ### 1) Create a notification channel
 
-Go to **Explore → Notifications → Channels** and click **Create channel**.
-
-Provide:
-- Channel name
-- Description
-- Channel type (e.g., Slack, email, webhook)
-- Relevant credentials (e.g., Slack webhook URL)
+Check the section [Configure notification channel](#6-configure-notification-channel)
 
 ### 2) Enable notifications for snapshot policies
 
@@ -794,7 +789,7 @@ Under **States**, click **Add state** to create an initial state (e.g., `initial
 
 Click **Add state** again to create a deletion state (e.g., `delete_alerts`). Click **Add action** and select **Delete**.
 
-Click **Add transition** and configure:
+Within initial state click **Add transition** and configure:
 - **Destination state**: `delete_alerts`
 - **Condition**: Minimum Index Age
 - **Minimum Index Age**: e.g., `46d` for 46 days
@@ -805,7 +800,7 @@ Set the **Initial State** to `initial` and click **Create**.
 
 ### 5) Apply policy to existing indexes
 
-If indexes already exist, you must manually apply the policy:
+If indexes already exist, you must manually apply the policy (the new ones wazuh create will have by default the policy):
 
 1. Go to **Index Management → Indexes**
 2. Select the indexes you want to manage
@@ -813,6 +808,39 @@ If indexes already exist, you must manually apply the policy:
 4. Choose the policy and click **Apply**
 
 The indexes will now appear under **Policy Managed Indexes**.
+
+
+### 6) Configure notification channel
+
+Next, set up the notification channel to receive alerts when policies execute—such as when indexes are deleted or snapshots are created.
+
+1. Go to **Explore → Notifications**
+2. Create an "SMTP sender" with Gmail configuration:
+  - Name: gmail
+  - Host: smtp.gmail.com
+  - Port: 587
+  - Email: <SENDER_EMAIL>
+3. Create an "Email recipient group":
+  - Name: SOC
+  - Email addresses: soc@marveladvisors.com
+  - Description: (optional)
+4. Go to **Channels** and create a new one with this configuration:
+  - Name: wazuh-notifications
+  - Description: (optional)
+  - Channel type: email
+  - Sender type: SMTP sender
+  - SMTP sender: select the Gmail sender created in step 2
+  - Default recipients: select the SOC email recipient group created in step 3
+5. Create an app password in Google at `https://myaccount.google.com/apppasswords`
+6. Add those credentials to the secret file `wazuh/secrets/wazuh-gmail-notifications-channel.yaml`
+7. Ensure the credentials are referenced in the `command` section of the wazuh-indexer StatefulSet, then apply the changes:
+  ```bash
+  kubectl apply -k envs/eks/
+  # or
+  kubectl rollout restart statefulset/wazuh-indexer -n wazuh
+  ```
+  After the rollout completes, you should be able to send a test message.
+
 
 ---
 ## Configuring a domain and SSL cert and for wazuh dashboard  

@@ -101,7 +101,18 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: wazuh-s3-creds
-                  key: secret_access_key                    
+                  key: secret_access_key
+            - name: GMAIL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: gmail-smtp
+                  key: username
+
+            - name: GMAIL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gmail-smtp
+                  key: password                                
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
@@ -170,7 +181,24 @@ spec:
               # Set proper permissions (ruta correcta)
               chown wazuh-indexer:wazuh-indexer /usr/share/wazuh-indexer/config/opensearch.keystore
               chmod 660 /usr/share/wazuh-indexer/config/opensearch.keystore
-              
+
+              # Add Gmail username
+              if ! /usr/share/wazuh-indexer/bin/opensearch-keystore list 2>/dev/null \
+                | grep -q opensearch.notifications.core.email.gmail.username; then
+                  echo "Adding Gmail username..."
+                  echo -n "$GMAIL_USERNAME" | \
+                  /usr/share/wazuh-indexer/bin/opensearch-keystore add \
+                  opensearch.notifications.core.email.gmail.username --stdin
+              fi
+
+              # Add Gmail password
+              if ! /usr/share/wazuh-indexer/bin/opensearch-keystore list 2>/dev/null \
+                | grep -q opensearch.notifications.core.email.gmail.password; then
+                  echo "Adding Gmail password..."
+                  echo -n "$GMAIL_PASSWORD" | \
+                  /usr/share/wazuh-indexer/bin/opensearch-keystore add \
+                  opensearch.notifications.core.email.gmail.password --stdin
+              fi
               # Start OpenSearch with original entrypoint
               exec /usr/share/wazuh-indexer/bin/systemd-entrypoint           
           ports:
