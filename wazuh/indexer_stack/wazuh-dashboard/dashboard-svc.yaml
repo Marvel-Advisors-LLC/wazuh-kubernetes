@@ -37,11 +37,14 @@ kind: Service
 metadata:
   name: dashboard
   namespace: wazuh
+  annotations:
+    alb.ingress.kubernetes.io/backend-protocol: HTTPS
 spec:
   type: ClusterIP
-  selector:
-    app: wazuh-dashboard  
   ports:
-    - name: http
-      port: 80
+    - name: https
+      port: 5601      # ← Cambiar a 5601
+      protocol: TCP
       targetPort: 5601
+  selector:
+    app: wazuh-dashboard

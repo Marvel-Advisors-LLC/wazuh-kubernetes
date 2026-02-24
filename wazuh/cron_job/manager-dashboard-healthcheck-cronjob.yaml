@@ -4,14 +4,16 @@ metadata:
   name: wazuh-infra-healthcheck
   namespace: wazuh
 spec:
-  schedule: "0 7 * * * "  # Every day at 07:00 AM
+  schedule: "0 7 * * *"  # Every day at 07:00 AM
+  #schedule: "*/2 * * * *"  # Every 2 minutes (for testing)  
   jobTemplate:
     spec:
       template:
         spec:
+          serviceAccountName: wazuh-healthcheck  # Required for kubectl exec
           containers:
           - name: healthcheck
-            image: alpine/curl:latest
+            image: alpine/k8s:1.29.2  # Changed to include kubectl
             env:
               - name: CHAT_WEBHOOK_URL
                 valueFrom:
@@ -21,20 +23,23 @@ spec:
               - name: WAZUH_USER
                 valueFrom:
                   secretKeyRef:
-                    name: wazuh-api-credentials
-                    key: user
+                    name: wazuh-api-cred
+                    key: username
               - name: WAZUH_PASS
                 valueFrom:
                   secretKeyRef:
-                    name: wazuh-api-credentials
+                    name: wazuh-api-cred
                     key: password
             command:
-              - /bin/sh
+              - /bin/bash
               - -c
               - |
                 set -euo pipefail
-                apk add --no-cache curl jq
+                
+                # Install curl and jq
+                # apt-get update -qq && apt-get install -y -qq curl jq > /dev/null 2>&1
 
+                echo "=== Wazuh Infrastructure Health Check ==="
                 echo "Authenticating with Wazuh API..."
                 TOKEN=$(curl -sk -u "$WAZUH_USER:$WAZUH_PASS" -X POST "https://wazuh:55000/security/user/authenticate?raw=true")
 
@@ -90,26 +95,134 @@ spec:
                   rm -f "$response_file"
                 done
 
+                echo ""
                 echo "Checking Wazuh Dashboard..."
-                dash_http_code=$(curl -sk -o /dev/null -w "%{http_code}" http://dashboard.wazuh.svc.cluster.local --max-time 10)
+                dash_http_code=$(curl -sk -o /dev/null -w "%{http_code}" \
+                  --connect-timeout 5 --max-time 10 \
+                  https://dashboard:5601 2>/dev/null || echo "000")
+                
+                echo "Dashboard response code: $dash_http_code"
 
                 if [ "$dash_http_code" = "302" ] || [ "$dash_http_code" = "200" ]; then
                   echo "✅ Dashboard is reachable (HTTP $dash_http_code)"
                 else
                   echo "❌ Dashboard unreachable (HTTP $dash_http_code)"
                   failed=1
-                  failed_services="$failed_services\n*Service:* Wazuh Dashboard\n*HTTP Code:* $dash_http_code\n"
+                  failed_services="$failed_services\n*Service:* Wazuh Dashboard\n*HTTP Code:* $dash_http_code\n*Error:* Failed to connect to dashboard at https://dashboard:5601\n"
                 fi
 
+                echo ""
+                echo "=== Checking n8n Integration File Permissions ==="
+                
+                PODS="wazuh-manager-master-0 wazuh-manager-worker-0"
+                FILES="custom-n8n-cm custom-n8n-cm.py"
+                
+                for pod in $PODS; do
+                  echo "→ Checking $pod..."
+                  
+                  # Check if pod exists and is running
+                  if ! kubectl get pod "$pod" -n wazuh &>/dev/null; then
+                    echo "⚠️  Pod $pod not found, skipping..."
+                    continue
+                  fi
+                  
+                  pod_status=$(kubectl get pod "$pod" -n wazuh -o jsonpath='{.status.phase}')
+                  if [ "$pod_status" != "Running" ]; then
+                    echo "⚠️  Pod $pod is not running (status: $pod_status), skipping..."
+                    continue
+                  fi
+                  
+                  for file in $FILES; do
+                    echo "  → Checking /var/ossec/integrations/$file"
+                    
+                    # Get file permissions
+                    perm_output=$(kubectl exec "$pod" -n wazuh -- ls -l "/var/ossec/integrations/$file" 2>/dev/null)
+                    
+                    if [ $? -ne 0 ]; then
+                      echo "  ❌ File $file not found in $pod"
+                      failed=1
+                      failed_services="$failed_services\n*Pod:* $pod\n*File:* $file\n*Error:* File not found\n"
+                      continue
+                    fi
+                    
+                    # Parse permissions, owner, and group
+                    perms=$(echo "$perm_output" | awk '{print $1}')
+                    owner=$(echo "$perm_output" | awk '{print $3}')
+                    group=$(echo "$perm_output" | awk '{print $4}')
+                    
+                    echo "  Permissions: $perms | Owner: $owner | Group: $group"
+                    
+                    # Check if permissions are correct (rwxr-x--- = -rwxr-x---)
+                    if [[ "$perms" != "-rwxr-x---"* ]]; then
+                      echo "  ❌ Incorrect permissions: $perms (expected: -rwxr-x---)"
+                      failed=1
+                      failed_services="$failed_services\n*Pod:* $pod\n*File:* $file\n*Issue:* Wrong permissions\n*Current:* $perms\n*Expected:* -rwxr-x---\n"
+                    fi
+                    
+                    # Check if owner is root
+                    if [ "$owner" != "root" ]; then
+                      echo "  ❌ Incorrect owner: $owner (expected: root)"
+                      failed=1
+                      failed_services="$failed_services\n*Pod:* $pod\n*File:* $file\n*Issue:* Wrong owner\n*Current:* $owner\n*Expected:* root\n"
+                    fi
+                    
+                    # Check if group is wazuh
+                    if [ "$group" != "wazuh" ]; then
+                      echo "  ❌ Incorrect group: $group (expected: wazuh)"
+                      failed=1
+                      failed_services="$failed_services\n*Pod:* $pod\n*File:* $file\n*Issue:* Wrong group\n*Current:* $group\n*Expected:* wazuh\n"
+                    fi
+                    
+                    # If all checks passed
+                    if [[ "$perms" == "-rwxr-x---"* ]] && [ "$owner" = "root" ] && [ "$group" = "wazuh" ]; then
+                      echo "  ✅ File permissions correct"
+                    fi
+                  done
+                done
+
+                echo ""
+                echo "=== Health Check Summary ==="
+                
                 # Final notification
                 if [ $failed -eq 1 ]; then
                   echo "🚨 Sending alert to Google Chat..."
                   curl -s -X POST -H 'Content-Type: application/json' \
                     --data "{\"text\":\"🚨 *Wazuh Infra Healthcheck Alert:*\n$failed_services\"}" \
                     "$CHAT_WEBHOOK_URL"
+                  echo "Alert sent."
                 else
-                  echo "✅ All Wazuh components healthy."
+                  echo "✅ All Wazuh components healthy, including integration file permissions."
                 fi
 
                 echo "Healthcheck completed."
           restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: wazuh-healthcheck
+  namespace: wazuh
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: wazuh-healthcheck-role
+  namespace: wazuh
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec"]
+    verbs: ["get", "list", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: wazuh-healthcheck-binding
+  namespace: wazuh
+subjects:
+  - kind: ServiceAccount
+    name: wazuh-healthcheck
+    namespace: wazuh
+roleRef:
+  kind: Role
+  name: wazuh-healthcheck-role
+  apiGroup: rbac.authorization.k8s.io

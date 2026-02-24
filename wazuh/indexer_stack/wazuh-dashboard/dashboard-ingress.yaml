@@ -16,6 +16,7 @@ metadata:
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
     alb.ingress.kubernetes.io/ssl-redirect: '443'
     alb.ingress.kubernetes.io/success-codes: "200,301,302,303"
+    alb.ingress.kubernetes.io/backend-protocol: HTTPS 
     external-dns.alpha.kubernetes.io/hostname: soc.siem-marvelad.com
 spec:
   rules:
@@ -28,4 +29,4 @@ spec:
               service:
                 name: dashboard  #Name of the service created for the dashboard
                 port:
-                  number: 80
+                  number: 5601
