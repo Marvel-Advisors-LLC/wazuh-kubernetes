@@ -1239,7 +1239,11 @@ curl -k -X GET "https://wazuh:55000/cluster/status" -H  "Authorization: Bearer $
 
 
 # dashboard
-curl -sk -I "http://dashboard.wazuh.svc.cluster.local" | head -n 1
+curl -sk -o /dev/null -w "HTTP Code: %{http_code}\n" https://dashboard:5601
+
+
+expected output: HTTP Code: 302
+
 ```
 ---
 ### Indexer 

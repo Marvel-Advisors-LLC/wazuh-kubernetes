@@ -1,5 +1,16 @@
 #!/bin/bash
 
+# ================= SET ABSOLUTE PATH =================
+export PATH=/usr/local/bin:/usr/bin:/bin
+
+# ================= FUNCTIONS (DEFINIR PRIMERO) =================
+send_to_chat() {
+    local msg="$1"
+    /usr/bin/curl -s -X POST "$WEBHOOK_URL" \
+         -H "Content-Type: application/json; charset=UTF-8" \
+         -d "{\"text\": \"$msg\"}" >/dev/null 2>&1 || echo "⚠️ Error sending message to Google Chat"
+}
+
 # ================= CONFIGURATION =================
 WEBHOOK_URL=$(aws ssm get-parameter --name "WEBHOOK_URL" --with-decryption --query "Parameter.Value" --output text)
 WAZUH_USER=$(aws ssm get-parameter --name "WAZUH_USER" --with-decryption --query "Parameter.Value" --output text)
@@ -15,23 +26,13 @@ NODEPORT_WAZUH=$(/usr/local/bin/kubectl get svc wazuh -n wazuh \
   -o jsonpath='{.spec.ports[?(@.port==55000)].nodePort}' 2>/dev/null)
 
 if [ -z "$NODEPORT_WAZUH" ]; then
-    send_to_chat "❌ Error: could not get Wazuh NodePort from service"
+    send_to_chat "❌ Error: could not get WazuNodePort"
     exit 1
 fi
 
-# ================= SET ABSOLUTE PATH =================
-export PATH=/usr/local/bin:/usr/bin:/bin
-
-# ================= FUNCTIONS =================
-send_to_chat() {
-    local msg="$1"
-    /usr/bin/curl -s -X POST "$WEBHOOK_URL" \
-         -H "Content-Type: application/json; charset=UTF-8" \
-         -d "{\"text\": \"$msg\"}" >/dev/null 2>&1 || echo "⚠️ Error sending message to Google Chat"
-}
-
 # ================= 1. Get IP of a cluster node =================
 NODE_IP=$(/usr/local/bin/kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null)
+
 if [ -z "$NODE_IP" ]; then
     send_to_chat "❌ Error: could not get the IP of the cluster node"
     exit 1
@@ -41,6 +42,7 @@ WAZUH_API="https://$NODE_IP:$NODEPORT_WAZUH"
 
 # ================= 2. Get Wazuh token =================
 TOKEN=$(/usr/bin/curl -s -u "$WAZUH_USER:$WAZUH_PASS" -k -X POST "$WAZUH_API/security/user/authenticate?raw=true")
+
 if [ -z "$TOKEN" ]; then
     send_to_chat "❌ Error: could not get Wazuh token from $WAZUH_API"
     exit 1
@@ -51,22 +53,33 @@ ID=$((RANDOM * RANDOM))
 
 # ================= 4. Send test syslog message =================
 SYSLOG_MSG="<134>1 $(/usr/bin/date -u +"%Y-%m-%dT%H:%M:%SZ") testhost test-syslog - - - Test message $ID"
+
+echo "Sending test syslog message with ID: $ID"
 /usr/bin/echo "$SYSLOG_MSG" | /usr/bin/nc -w 1 "$SYSLOG_HOST" "$SYSLOG_PORT"
+
 if [ $? -ne 0 ]; then
     send_to_chat "❌ Error: could not send syslog message to host $SYSLOG_HOST:$SYSLOG_PORT"
     exit 1
 fi
 
+echo "Syslog message sent successfully. Waiting 10 seconds for processing..."
+sleep 10
+
 # ================= 5. Search for alert in Wazuh Indexer =================
 CURRENT_DATE=$(/usr/bin/date -u +"%Y.%m.%d")
 CURRENT_INDEX="wazuh-alerts-4.x-$CURRENT_DATE"
-
 QUERY_URL="$INDEXER_URL/$CURRENT_INDEX/_search?q=full_log:\"$ID\"&pretty"
+
+echo "Searching for alert in index: $CURRENT_INDEX"
 RESULT=$(/usr/bin/curl -sk -u "$INDEXER_USER:$INDEXER_PASS" -X GET "$QUERY_URL")
 
 if echo "$RESULT" | /usr/bin/grep -q '"value" : 0'; then
     send_to_chat "⚠️ Alert with ID $ID was not found in the index $CURRENT_INDEX. Possible ingestion failure."
     exit 1
 else
+    ALERT_ID=$(echo "$RESULT" | grep -o '"_id" : "[^"]*"' | head -1 | cut -d'"' -f4)
+    send_to_chat "✅ Test alert found in the index $CURRENT_INDEX. ID: $ID (Alert ID: $ALERT_ID)"
     echo "✅ Test alert found in the index $CURRENT_INDEX. ID: $ID"
 fi
+
+exit 0

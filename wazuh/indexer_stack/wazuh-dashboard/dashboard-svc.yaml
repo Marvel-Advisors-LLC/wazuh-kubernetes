@@ -43,7 +43,7 @@ spec:
   type: ClusterIP
   ports:
     - name: https
-      port: 5601      # ← Cambiar a 5601
+      port: 5601    
       protocol: TCP
       targetPort: 5601
   selector:
