@@ -62,6 +62,21 @@ spec:
       containers:
         - name: wazuh-manager
           image: 'wazuh/wazuh-manager:4.14.2'
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/bash
+                  - -c
+                  - |
+                    # Wait for files to be copied by entrypoint
+                    sleep 5
+                    # Fix permissions
+                    if [ -f /var/ossec/integrations/custom-n8n-cm ]; then
+                      chmod 0750 /var/ossec/integrations/custom-n8n-cm
+                      chmod 0750 /var/ossec/integrations/custom-n8n-cm.py
+                      echo "✅ Integration permissions fixed"
+                    fi          
           resources:
             limits:
               cpu: 1
