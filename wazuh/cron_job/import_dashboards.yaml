@@ -1,0 +1,111 @@
+# Copyright (C) 2019, Wazuh Inc.
+#
+# This program is a free software; you can redistribute it
+# and/or modify it under the terms of the GNU General Public
+# License (version 2) as published by the FSF - Free Software
+# Foundation.
+#
+# Job: Import Wazuh dashboards from exported .ndjson
+# Runs after every deploy. Idempotent — uses overwrite=false so existing
+# dashboards are never overwritten, only missing ones are created.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wazuh-dashboard-import
+  namespace: wazuh
+  annotations:
+    app.kubernetes.io/version: "1"
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: dashboard-import
+          image: curlimages/curl:8.6.0
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              DASHBOARD_URL="https://dashboard:5601"
+              NDJSON_FILE="/dashboards/export.ndjson"
+
+              notify_chat() {
+                MESSAGE="$1"
+                curl -s -X POST -H 'Content-Type: application/json' \
+                  --data "{\"text\":\"$MESSAGE\"}" \
+                  "$CHAT_WEBHOOK_URL" || true
+              }
+
+              echo "Waiting for dashboard to be ready..."
+              RETRIES=0
+              MAX_RETRIES=30
+              until curl -sk -o /dev/null -w "%{http_code}" \
+                -u "${DASHBOARD_USER}:${DASHBOARD_PASSWORD}" \
+                "${DASHBOARD_URL}/api/status" | grep -q "200"; do
+                RETRIES=$((RETRIES + 1))
+                if [ "$RETRIES" -ge "$MAX_RETRIES" ]; then
+                  notify_chat "🚨 *Wazuh Dashboard Import Job:*\n\nDashboard did not become ready after $((MAX_RETRIES * 10))s. Import aborted."
+                  exit 1
+                fi
+                echo "Dashboard not ready yet, retrying in 10s... ($RETRIES/$MAX_RETRIES)"
+                sleep 10
+              done
+
+              echo "Dashboard is ready. Importing saved objects..."
+              RESPONSE=$(curl -sk \
+                -u "${DASHBOARD_USER}:${DASHBOARD_PASSWORD}" \
+                -X POST "${DASHBOARD_URL}/api/saved_objects/_import?overwrite=false" \
+                -H "osd-xsrf: true" \
+                --form file=@"${NDJSON_FILE}")
+
+              echo "Import response: ${RESPONSE}"
+
+              SUCCESS=$(echo "$RESPONSE" | grep -o '"success":[^,}]*' | head -1 | cut -d: -f2)
+              SUCCESS_COUNT=$(echo "$RESPONSE" | grep -o '"successCount":[0-9]*' | cut -d: -f2)
+
+              if [ "$SUCCESS" = "false" ] && [ "$SUCCESS_COUNT" = "0" ]; then
+                # Check if all errors are conflicts (objects already exist — this is OK)
+                NON_CONFLICT=$(echo "$RESPONSE" | grep '"error"' | grep -v '"type":"conflict"' || true)
+                if [ -n "$NON_CONFLICT" ]; then
+                  notify_chat "🚨 *Wazuh Dashboard Import Job:*\n\nDashboard import failed with unexpected errors.\n*Response:* \`$RESPONSE\`"
+                  exit 1
+                else
+                  echo "All objects already exist (conflict) — nothing to import. This is expected."
+                  notify_chat "✅ *Wazuh Dashboard Import Job:*\n\nAll saved objects already exist — nothing to import. This is expected."
+                fi
+              elif [ "$SUCCESS" = "true" ]; then
+                echo "✅ Import completed successfully. Imported $SUCCESS_COUNT object(s)."
+                notify_chat "✅ *Wazuh Dashboard Import Job:*\n\n$SUCCESS_COUNT saved object(s) imported successfully."
+              else
+                notify_chat "🚨 *Wazuh Dashboard Import Job:*\n\nDashboard import returned unexpected response.\n*Response:* \`$RESPONSE\`"
+                exit 1
+              fi
+
+          env:
+            - name: DASHBOARD_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-cred
+                  key: username
+            - name: DASHBOARD_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-cred
+                  key: password
+            - name: CHAT_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: google-chat-webhook
+                  key: url
+          volumeMounts:
+            - name: dashboards-export
+              mountPath: /dashboards
+              readOnly: true
+      volumes:
+        - name: dashboards-export
+          secret:
+            secretName: wazuh-dashboards-export

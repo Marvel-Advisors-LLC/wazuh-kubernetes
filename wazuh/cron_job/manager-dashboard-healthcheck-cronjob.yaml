@@ -181,6 +181,22 @@ spec:
                 done
 
                 echo ""
+                echo "=== Checking required secrets ==="
+                REQUIRED_SECRETS="wazuh-dashboards-export"
+                for secret in $REQUIRED_SECRETS; do
+                  if kubectl get secret "$secret" -n wazuh &>/dev/null; then
+                    echo "✅ Secret $secret exists"
+                  else
+                    echo "❌ Secret $secret NOT FOUND"
+                    failed=1
+                    failed_services="$failed_services\n*❌ Secret missing:* \`$secret\`\n*Action required:* Create it manually (see alert sent).\n"
+                    curl -s -X POST -H 'Content-Type: application/json' \
+                      --data "{\"text\":\"🚨 *Wazuh Infra Healthcheck:*\n\n❌ *Secret missing:* \`$secret\`\n\n*Action required:* Create it manually by running:\nkubectl create secret generic wazuh-dashboards-export --from-file=export.ndjson=wazuh/indexer_stack/wazuh-dashboard/dashboards/export.ndjson -n wazuh\"}" \
+                      "$CHAT_WEBHOOK_URL"
+                  fi
+                done              
+
+                echo ""
                 echo "=== Health Check Summary ==="
                 
                 # Final notification
@@ -212,6 +228,9 @@ rules:
   - apiGroups: [""]
     resources: ["pods", "pods/exec"]
     verbs: ["get", "list", "create"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

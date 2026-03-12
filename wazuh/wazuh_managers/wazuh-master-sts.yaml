@@ -61,7 +61,7 @@ spec:
         fsGroup: 101
       containers:
         - name: wazuh-manager
-          image: 'wazuh/wazuh-manager:4.14.2'
+          image: 'wazuh/wazuh-manager:4.14.3'
           lifecycle:
             postStart:
               exec:
