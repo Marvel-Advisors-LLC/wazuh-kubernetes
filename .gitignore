@@ -26,6 +26,7 @@ wazuh/certs/indexer_cluster/*.srl
 /envs/eks/wazuh-indexer-legacy.yaml
 /wazuh/secrets/m365-cred-secret.yaml
 /wazuh/secrets/wazuh-s3-creds.yaml
+/wazuh/secrets/*.yaml
 
 
 # Unencrypted secrets: ignore all YAML files

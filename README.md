@@ -59,6 +59,7 @@ Deploy a Wazuh cluster with a basic indexer and dashboard stack on Kubernetes.
     - [4) Finalize policy](#4-finalize-policy)
     - [5) Apply policy to existing indexes](#5-apply-policy-to-existing-indexes)
     - [6) Configure notification channel](#6-configure-notification-channel)
+  - [Dashboards Persistence](#dashboards-persistence)
   - [Configuring a domain and SSL cert for wazuh dashboard](#configuring-a-domain-and-ssl-cert-and-for-wazuh-dashboard)
     - [1) Configure and set a domain on Route53](#1-configure-and-set-a-domain-on-route53)
     - [2) Install the external-dns plugin](#2-install-the-dns-external-plugin)
@@ -842,7 +843,106 @@ Next, set up the notification channel to receive alerts when policies execute—
   After the rollout completes, you should be able to send a test message.
 
 
+---  
+
+## Dashboards Persistence
+
+By default, Wazuh Dashboards saved objects (index patterns, visualizations, searches, and dashboards) are stored in the OpenSearch index and **lost every time the indexer PVC is recreated**. This section explains how to back them up and restore them automatically on every deploy.
+
+### Overview
+
+The solution has two parts:
+- A **Kubernetes Secret** (`wazuh-dashboards-export`) that holds the exported `.ndjson` file with some of the dashboard as saved objects.
+- A **Kubernetes Job** (`wazuh-dashboard-import`) that runs on every deploy and imports the saved objects if they are missing, or does nothing if they already exist.
+
+The Job is idempotent — it uses `overwrite=false`, so existing dashboards are never overwritten. It also sends a notification to Google Chat on every run.  
+We have several dashboards, but the tutorial here and the `secret` and `Job` only create the `export.ndjson` dashboard.  
+You have to import the rest of the dashboards manually
+
 ---
+
+### 1) Export your dashboards
+
+From the Wazuh Dashboard UI:
+
+1. Go to **Management → Dashboards Management → Saved Objects**
+2. Select all objects you want to persist (index patterns, searches, visualizations, dashboards)
+3. Click **Export** and save the file as `export.ndjson`
+4. Place the file in your repo at:
+   ```
+   wazuh/indexer_stack/wazuh-dashboard/dashboards/export.ndjson
+   ```
+
+---
+
+### 2) Create the Secret
+
+The `.ndjson` file exceeds the 262KB annotation limit of `kubectl apply`, so the Secret must be created with `kubectl create` (not managed by kustomize):
+
+```bash
+kubectl create secret generic wazuh-dashboards-export \
+  --from-file=export.ndjson=wazuh/indexer_stack/wazuh-dashboard/dashboards/export.ndjson \
+  -n wazuh
+```
+
+> **Note:** The `wazuh-infra-healthcheck` CronJob monitors this Secret daily. If it is missing, an alert will be sent to Google Chat with the exact command to recreate it.
+
+---
+
+### 3) Deploy the import Job
+
+The Job YAML is located at `wazuh/cron_job/import_dashboards.yaml`. It is included in the kustomize resources and runs automatically on every deploy:
+
+```bash
+kubectl apply -k envs/eks/
+```
+
+Verify the Job completed successfully:
+
+```bash
+kubectl get job wazuh-dashboard-import -n wazuh
+kubectl logs -n wazuh job/wazuh-dashboard-import
+```
+
+Expected output when dashboards already exist:
+```
+Waiting for dashboard to be ready...
+Dashboard is ready. Importing saved objects...
+All objects already exist (conflict) — nothing to import. This is expected.
+```
+
+Expected output on a fresh cluster (dashboards just imported):
+```
+Waiting for dashboard to be ready...
+Dashboard is ready. Importing saved objects...
+✅ Import completed successfully. Imported 4 object(s).
+```
+
+---
+
+### 4) Updating dashboards
+
+When you create new dashboards or modify existing ones, repeat the export and update the Secret:
+
+```bash
+# 1. Export from UI and replace the file in the repo
+cp /path/to/new/export.ndjson wazuh/indexer_stack/wazuh-dashboard/dashboards/export.ndjson
+
+# 2. Recreate the Secret
+kubectl delete secret wazuh-dashboards-export -n wazuh
+kubectl create secret generic wazuh-dashboards-export \
+  --from-file=export.ndjson=wazuh/indexer_stack/wazuh-dashboard/dashboards/export.ndjson \
+  -n wazuh
+
+# 3. Delete the Job so it re-runs on next deploy
+kubectl delete job wazuh-dashboard-import -n wazuh
+
+# 4. Deploy
+kubectl apply -k envs/eks/
+```
+ 
+
+
 ## Configuring a domain and SSL cert and for wazuh dashboard  
 We are going to do it using route53, external plugin, an ALB and ingress.   
 
