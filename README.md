@@ -27,6 +27,7 @@ Deploy a Wazuh cluster with a basic indexer and dashboard stack on Kubernetes.
       - [Edit a secret (re-encrypt)](#2-edit-a-secret)
       - [SOPS creation rules (.sops.yaml)](#3-sops-creations-rules)
       - [Maintaining the scripts](#4-maintaining-the-scripts)
+    - [5) Dashboards secrets](#5-dashboard-secrets)    
   - [Amazon EKS development](#amazon-eks-development)
   - [Local development](#local-development)
   - [Directory structure](#directory-structure)
@@ -213,7 +214,7 @@ We use the `.sops.yaml` file for mantaining proper format on the files, make sur
 #### 4) Maintaining the scripts
 If you add secrets in new folders, update the corresponding sops-scripts to include those folders so encryption/decryption and verification remain correct and consistent.  
 
-#### 5) Dashboard secrets
+### 5) Dashboard secrets
 We have within `wazuh/indexer_stack/wazuh-dashboard/dashboards` several dashboards that have to be imported manually. You can check how to do it in the [Dashboards Persistence](#dashboards-persistence) section.
 ## Amazon EKS development
 
