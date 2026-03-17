@@ -211,7 +211,10 @@ Avoid using the `sops-create-secrets.sh just to modify one secret, otherwise you
 We use the `.sops.yaml` file for mantaining proper format on the files, make sure that file exists. 
 
 #### 4) Maintaining the scripts
-If you add secrets in new folders, update the corresponding sops-scripts to include those folders so encryption/decryption and verification remain correct and consistent.
+If you add secrets in new folders, update the corresponding sops-scripts to include those folders so encryption/decryption and verification remain correct and consistent.  
+
+#### 5) Dashboard secrets
+We have within `wazuh/indexer_stack/wazuh-dashboard/dashboards` several dashboards that have to be imported manually. You can check how to do it in the [Dashboards Persistence](#dashboards-persistence) section.
 ## Amazon EKS development
 
 To deploy a cluster on Amazon EKS cluster read the instructions on [instructions.md](instructions.md).
@@ -859,7 +862,14 @@ The Job is idempotent — it uses `overwrite=false`, so existing dashboards are 
 We have several dashboards, but the tutorial here and the `secret` and `Job` only create the `export.ndjson` dashboard.  
 You have to import the rest of the dashboards manually
 
----
+--- 
+
+### Important 
+If you arrived here from step 4 of the [Adjust wazuh resources](#adjust-wazuh-resources), you need to manually import dashboards. 
+To do this, navigate to your Wazuh instance in your browser, select `Dashboard Management`, then `Saved Objects`, and click the `Import` button. 
+Please note that dashboards must be imported one at a time.
+
+If you do not arrived here from the step 4, just follow the tutorial bellow:
 
 ### 1) Export your dashboards
 
