@@ -85,7 +85,9 @@ resources:
   - wazuh_managers/wazuh_conf/entrypoint-syslog-cm.yaml 
   - wazuh_managers/wazuh_conf/syslog-ng-cm.yaml   
   
-  - cron_job/secrets/googlechat-webhook.yaml 
+  - cron_job/secrets/googlechat-webhook.yaml
+  - cron_job/secrets/supabase.yaml
+  - cron_job/soc_monthly_report.yaml 
   - cron_job/manager-dashboard-healthcheck-cronjob.yaml
   - cron_job/indexer-healthcheck-cronjob.yaml ########## ENDS MY CONFIG ###########################
 

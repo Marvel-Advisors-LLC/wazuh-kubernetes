@@ -1,0 +1,192 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: wazuh-monthly-stats
+  namespace: wazuh
+  annotations:
+    app.kubernetes.io/description: "Collects monthly alert counts from Wazuh Indexer and upserts to Supabase for report generation"
+spec:
+  schedule: "0 1 1 * *" # At 01:00 on the 1st of every month
+  #schedule: "*/2 * * * *"   # Every two minutes for testing
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      backoffLimit: 3
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: stats-collector
+              image: python:3.11-slim
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  pip install requests python-dateutil -q
+
+                  cat << 'PYEOF' > /tmp/collect_stats.py
+                  import os, json, sys, requests, urllib3
+                  from datetime import date
+                  from calendar import monthrange
+                  from dateutil.relativedelta import relativedelta
+
+                  urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+                  def notify_chat(message):
+                      url = os.environ.get('CHAT_WEBHOOK_URL', '')
+                      if not url:
+                          return
+                      try:
+                          requests.post(url, json={"text": message}, timeout=10)
+                      except Exception:
+                          pass
+
+                  try:
+                      today        = date.today()
+                      last_month   = today.replace(day=1) - relativedelta(months=1)
+                      month_year   = last_month.strftime('%Y-%m')
+                      last_day     = monthrange(last_month.year, last_month.month)[1]
+                      date_from = last_month.strftime('%Y-%m-01T00:00:00-03:00')
+                      date_to   = last_month.strftime(f'%Y-%m-{last_day:02d}T23:30:00-03:00')
+
+                      INDEXER_URL  = os.environ['WAZUH_INDEXER_URL']
+                      INDEXER_USER = os.environ['WAZUH_INDEXER_USER']
+                      INDEXER_PASS = os.environ['WAZUH_INDEXER_PASS']
+                      SUPABASE_URL = os.environ['SUPABASE_URL']
+                      SUPABASE_KEY = os.environ['SUPABASE_KEY']
+
+                      print(f"Collecting stats for {month_year} ({date_from} -> {date_to})")
+
+                      query = {
+                          "size": 0,
+                          "track_total_hits": True,      # <-- esto
+                          "query": {
+                              "range": {"@timestamp": {"gte": date_from, "lte": date_to}}
+                          },                          
+                          "aggs": {
+                              "by_level": {
+                                  "range": {
+                                      "field": "rule.level",
+                                      "ranges": [
+                                          {"key": "low",      "from": 0,  "to": 6},
+                                          {"key": "medium",   "from": 6,  "to": 11},
+                                          {"key": "high",     "from": 11, "to": 13},
+                                          {"key": "critical", "from": 13, "to": 16}
+                                      ]
+                                  }
+                              },
+                              "by_source": {
+                                  "filters": {
+                                      "filters": {
+                                          "SentinelOne": {"term": {"decoder.name": "sentinelone"}},
+                                          "PaloAlto":    {"term": {"decoder.name": "paloalto"}},
+                                          "Office365":   {"term": {"decoder.name": "json"}}
+                                      }
+                                  }
+                              }
+                          }
+                      }
+
+                      resp = requests.post(
+                          f"{INDEXER_URL}/wazuh-alerts-4.x-*/_search",
+                          json=query,
+                          auth=(INDEXER_USER, INDEXER_PASS),
+                          verify=False,
+                          timeout=30
+                      )
+                      resp.raise_for_status()
+                      data = resp.json()
+
+                      level_buckets  = {b['key']: b['doc_count'] for b in data['aggregations']['by_level']['buckets']}
+                      source_buckets = data['aggregations']['by_source']['buckets']
+                      total          = data['hits']['total']['value']
+
+                      prev_month_year = (last_month - relativedelta(months=1)).strftime('%Y-%m')
+                      prev_resp = requests.get(
+                          f"{SUPABASE_URL}/rest/v1/wazuh_monthly_stats",
+                          params={"month_year": f"eq.{prev_month_year}", "select": "medium_events,high_events"},
+                          headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"},
+                          timeout=10
+                      )
+
+                      row = {
+                          "month_year":        month_year,
+                          "total_events":      total,
+                          "low_events":        level_buckets.get('low',      0),
+                          "medium_events":     level_buckets.get('medium',   0),
+                          "high_events":       level_buckets.get('high',     0),
+                          "critical_events":   level_buckets.get('critical', 0),
+                          "palo_alto_total":   source_buckets.get('PaloAlto',    {}).get('doc_count', 0),
+                          "sentinelone_total": source_buckets.get('SentinelOne', {}).get('doc_count', 0),
+                          "office365_total":   source_buckets.get('Office365',   {}).get('doc_count', 0),
+                      }
+
+                      if prev_resp.ok and prev_resp.json():
+                          prev = prev_resp.json()[0]
+                          row["prev_medium_events"] = prev.get("medium_events")
+                          row["prev_high_events"]   = prev.get("high_events")
+
+                      upsert = requests.post(
+                          f"{SUPABASE_URL}/rest/v1/wazuh_monthly_stats?on_conflict=month_year",
+                          json=row,
+                          headers={
+                              "apikey":        SUPABASE_KEY,
+                              "Authorization": f"Bearer {SUPABASE_KEY}",
+                              "Content-Type":  "application/json",
+                              "Prefer":        "resolution=merge-duplicates"
+                          },
+                          timeout=10
+                      )
+
+                      upsert.raise_for_status()
+
+                      summary = (
+                          f"✅ *Wazuh Monthly Stats — {month_year}*\n\n"
+                          f"Total events: {total:,}\n"
+                          f"Low: {row['low_events']:,}  |  Medium (P3): {row['medium_events']:,}  |  "
+                          f"High (P2): {row['high_events']:,}  |  Critical (P1): {row['critical_events']:,}\n"
+                          f"SentinelOne: {row['sentinelone_total']:,}  |  PaloAlto: {row['palo_alto_total']:,}  |  O365: {row['office365_total']:,}"
+                      )
+                      print(summary)
+                      notify_chat(summary)
+
+                  except Exception as e:
+                      msg = f"🚨 *Wazuh Monthly Stats:* Collection failed — {e}"
+                      print(msg, file=sys.stderr)
+                      notify_chat(msg)
+                      sys.exit(1)
+                  PYEOF
+
+                  python3 /tmp/collect_stats.py
+
+              env:
+                - name: WAZUH_INDEXER_URL
+                  value: "https://wazuh-indexer:9200"
+                - name: WAZUH_INDEXER_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: indexer-cred
+                      key: username
+                - name: WAZUH_INDEXER_PASS
+                  valueFrom:
+                    secretKeyRef:
+                      name: indexer-cred
+                      key: password
+                - name: SUPABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: supabase-credentials
+                      key: url
+                - name: SUPABASE_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: supabase-credentials
+                      key: service_role_key
+                - name: CHAT_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: google-chat-webhook
+                      key: url
