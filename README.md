@@ -703,7 +703,10 @@ next click on `Specify retention conditions` and select the time you want to hav
 
 #### 5) Restoring a snapshot  
 
-Go to `Snapshots`, select your snapshots and click on `restore`, then you'll need to select if you want to restore all the indexes or just a set of them. You'll need to have an account with snapshots permissions for this step.  If you are having problems with the permissions, you can check the logs by trying to restore the snapshot from the terminal, like this:  
+Go to `Snapshots`, select your snapshots and click on `restore`, then you'll need to select if you want to restore all the indexes or just a set of them. You'll need to have an account with snapshots permissions for this step.  
+In the config for the restore, click on `"Advanced Options"` or you won't be able to restore the snapshot and uncheck the option for `'Restore cluster state from snapshots'`.  
+![If the image doesn't appears, it may be deleted from /images/snapshot-policy-creation-2.png](images/unpin_restore_cluster_state.jpg)
+If you are having problems with the permissions, you can check the logs by trying to restore the snapshot from the terminal, like this:  
 ```bash
 curl -k -u <user>:'<password>' -X POST \
   "https://indexer:9200/_snapshot/<snapshot_repository>/<snapshot_name>/_restore?master_timeout=5m" \
