@@ -702,6 +702,10 @@ In the same section (Index Managament) go to `Snapshots Policy` and click on cre
 next click on `Specify retention conditions` and select the time you want to have those snapshots on S3 before deleting them forever. Finally click on `Create`.  
 
 #### 5) Restoring a snapshot  
+#### IMPORTANT: DO NOT RESTORE MORE THAN ONE SNAPSHOT AT A TIME. ONCE THE SNAPSHOT IS RESTORED AND ALL INDICES ARE GREEN,  
+#### REVIEW THE INFORMATION YOU NEED, THEN DELETE THE RESTORED SNAPSHOT INDICES. AFTER THEY ARE DELETED, YOU CAN RESTORE THE NEXT SNAPSHOT.  
+#### DO NOT RESTORE MULTIPLE SNAPSHOTS WITHOUT FIRST DELETING THE PREVIOUS RESTORED SNAPSHOT.  
+#### ALWAYS CHECK THE JAVA HEAP MEMORY ASSIGNED TO THE INDEXER PODS IN THE INDEXER STATEFULSET YAML
 
 Go to `Snapshots`, select your snapshots and click on `restore`, then you'll need to select if you want to restore all the indexes or just a set of them. You'll need to have an account with snapshots permissions for this step.  
 In the config for the restore, click on `"Advanced Options"` or you won't be able to restore the snapshot and uncheck the option for `'Restore cluster state from snapshots'`.   
