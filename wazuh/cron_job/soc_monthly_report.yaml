@@ -6,7 +6,8 @@ metadata:
   annotations:
     app.kubernetes.io/description: "Collects monthly alert counts from Wazuh Indexer and upserts to Supabase for report generation"
 spec:
-  schedule: "0 1 1 * *" # At 01:00 on the 1st of every month
+  schedule: "0 6 1 * *" # At 06:00 on the 1st of every month
+  timeZone: "America/Denver"
   #schedule: "*/2 * * * *"   # Every two minutes for testing
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
