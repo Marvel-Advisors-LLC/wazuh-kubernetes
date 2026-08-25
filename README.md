@@ -60,6 +60,7 @@ Deploy a Wazuh cluster with a basic indexer and dashboard stack on Kubernetes.
     - [4) Finalize policy](#4-finalize-policy)
     - [5) Apply policy to existing indexes](#5-apply-policy-to-existing-indexes)
     - [6) Configure notification channel](#6-configure-notification-channel)
+    - [7) Alert log file cleanup (filesystem)](#7-alert-log-file-cleanup-filesystem)
   - [Dashboards Persistence](#dashboards-persistence)
   - [Configuring a domain and SSL cert for wazuh dashboard](#configuring-a-domain-and-ssl-cert-and-for-wazuh-dashboard)
     - [1) Configure and set a domain on Route53](#1-configure-and-set-a-domain-on-route53)
@@ -265,7 +266,8 @@ To deploy a cluster on your local environment (like Minikube, Kind or Microk8s) 
         |   |       ├── googlechat-webhook.yaml (and encrypted version)
         │   │       └── wazuh-api-credentials.yaml  (and encrypted version)
         │   ├── indexer-healthcheck-cronjob.yaml  
-        │   ├── manager-dashboard-healthcheck-cronjob.yaml                     
+        │   ├── manager-dashboard-healthcheck-cronjob.yaml
+        │   ├── wazuh-log-cleanup-cronjob.yaml
         │   └── syslog-healtcheck-cronjob.sh        
         ├── indexer_stack
         │   ├── wazuh-dashboard
@@ -855,6 +857,46 @@ Next, set up the notification channel to receive alerts when policies execute—
   ```
   After the rollout completes, you should be able to send a test message.
 
+
+### 7) Alert log file cleanup (filesystem)
+
+The ISM policy above deletes alert **indices** from the Wazuh Indexer (OpenSearch), but Wazuh also writes alert log files directly to the manager pod filesystem at `/var/ossec/logs/alerts/`. These files are not managed by the ISM policy and accumulate indefinitely, consuming space on the manager PVC (~5 GB/month).
+
+A CronJob handles this automatically, aligned with the same 45-day retention period.
+
+**File:** `wazuh/cron_job/wazuh-log-cleanup-cronjob.yaml`
+
+The CronJob:
+- Runs daily at 03:00 AM UTC
+- Deletes `.log` and `.gz` files in `/var/ossec/logs/alerts/` older than 45 days on both `wazuh-manager-master-0` and `wazuh-manager-worker-0`
+- Reports disk usage after cleanup and sends a Google Chat notification (success or failure)
+- Uses the `google-chat-webhook` secret, same as the other health check CronJobs
+
+To apply:
+
+```bash
+kubectl apply -f wazuh/cron_job/wazuh-log-cleanup-cronjob.yaml
+```
+
+To test manually without waiting for the scheduled run:
+
+```bash
+kubectl create job --from=cronjob/wazuh-log-cleanup wazuh-log-cleanup-test -n wazuh
+kubectl logs -f job/wazuh-log-cleanup-test -n wazuh
+```
+
+Expected output:
+
+```
+=== Wazuh Alert Log Cleanup — retention: 45 days ===
+--- Processing wazuh-manager-master-0 ---
+  Files to delete (older than 45d): 0
+  ✅ Deleted 0 file(s). Disk: 17G/49G (33%)
+--- Processing wazuh-manager-worker-0 ---
+  Files to delete (older than 45d): 0
+  ✅ Deleted 0 file(s). Disk: 17G/49G (34%)
+=== Cleanup complete ===
+```
 
 ---  
 

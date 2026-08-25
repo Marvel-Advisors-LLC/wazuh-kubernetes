@@ -1,0 +1,130 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: wazuh-log-cleanup
+  namespace: wazuh
+spec:
+  schedule: "0 3 * * *"  # Every day at 03:00 AM UTC (aligns with ISM policy 45-day retention)
+  #schedule: "*/2 * * * *"  # Every 2 minutes (for testing)
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: wazuh-log-cleanup
+          containers:
+          - name: cleanup
+            image: alpine/k8s:1.29.2
+            env:
+              - name: CHAT_WEBHOOK_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: google-chat-webhook
+                    key: url
+            command:
+              - /bin/bash
+              - -c
+              - |
+                set -euo pipefail
+
+                RETENTION_DAYS=45
+                PODS="wazuh-manager-master-0 wazuh-manager-worker-0"
+
+                echo "=== Wazuh Alert Log Cleanup — retention: ${RETENTION_DAYS} days ==="
+
+                failed=0
+                failed_details=""
+                cleanup_summary=""
+
+                for pod in $PODS; do
+                  echo "--- Processing $pod ---"
+
+                  if ! kubectl get pod "$pod" -n wazuh &>/dev/null; then
+                    echo "⚠️  Pod $pod not found, skipping..."
+                    failed=1
+                    failed_details="$failed_details\n*Pod:* $pod\n*Error:* Pod not found\n"
+                    continue
+                  fi
+
+                  pod_status=$(kubectl get pod "$pod" -n wazuh -o jsonpath='{.status.phase}')
+                  if [ "$pod_status" != "Running" ]; then
+                    echo "⚠️  Pod $pod is not running (status: $pod_status), skipping..."
+                    failed=1
+                    failed_details="$failed_details\n*Pod:* $pod\n*Error:* Pod not running (status: $pod_status)\n"
+                    continue
+                  fi
+
+                  # Count files before deletion
+                  before=$(kubectl exec "$pod" -n wazuh -- \
+                    find /var/ossec/logs/alerts -type f \( -name "*.gz" -o -name "*.log" \) -mtime +${RETENTION_DAYS} 2>/dev/null | wc -l || echo "0")
+
+                  echo "  Files to delete (older than ${RETENTION_DAYS}d): $before"
+
+                  # Delete old alert log files
+                  if ! kubectl exec "$pod" -n wazuh -- \
+                    find /var/ossec/logs/alerts -type f \( -name "*.gz" -o -name "*.log" \) -mtime +${RETENTION_DAYS} -delete 2>/dev/null; then
+                    echo "  ❌ Cleanup failed on $pod"
+                    failed=1
+                    failed_details="$failed_details\n*Pod:* $pod\n*Error:* find/delete command failed\n"
+                    continue
+                  fi
+
+                  # Disk usage after cleanup
+                  disk_after=$(kubectl exec "$pod" -n wazuh -- df -h /etc/filebeat 2>/dev/null | awk 'NR==2 {print $3"/"$2" ("$5")"}' || echo "unknown")
+
+                  echo "  ✅ Deleted $before file(s). Disk: $disk_after"
+                  cleanup_summary="$cleanup_summary\n*$pod:* deleted $before file(s) — disk used: $disk_after"
+                done
+
+                echo ""
+                echo "=== Cleanup Summary ==="
+
+                if [ $failed -eq 1 ]; then
+                  echo "🚨 Cleanup completed with errors. Sending alert to Google Chat..."
+                  curl -s -X POST -H 'Content-Type: application/json' \
+                    --data "{\"text\":\"🚨 *Wazuh Log Cleanup Alert:*\n\nRetention: ${RETENTION_DAYS} days\n\n*Errors:*$failed_details\n*Partial results:*$cleanup_summary\"}" \
+                    "$CHAT_WEBHOOK_URL"
+                  echo "Alert sent."
+                  exit 1
+                else
+                  echo "✅ Cleanup completed successfully. Sending summary to Google Chat..."
+                  curl -s -X POST -H 'Content-Type: application/json' \
+                    --data "{\"text\":\"✅ *Wazuh Log Cleanup completed:*\n\nRetention: ${RETENTION_DAYS} days\n$cleanup_summary\"}" \
+                    "$CHAT_WEBHOOK_URL"
+                  echo "Summary sent."
+                fi
+
+                echo "=== Done ==="
+          restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: wazuh-log-cleanup
+  namespace: wazuh
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: wazuh-log-cleanup-role
+  namespace: wazuh
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec"]
+    verbs: ["get", "list", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: wazuh-log-cleanup-binding
+  namespace: wazuh
+subjects:
+  - kind: ServiceAccount
+    name: wazuh-log-cleanup
+    namespace: wazuh
+roleRef:
+  kind: Role
+  name: wazuh-log-cleanup-role
+  apiGroup: rbac.authorization.k8s.io
