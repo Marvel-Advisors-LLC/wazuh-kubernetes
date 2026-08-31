@@ -37,6 +37,8 @@ spec:
                 failed=0
                 failed_details=""
                 cleanup_summary=""
+                disk_warn=0
+                disk_warn_details=""
 
                 for pod in $PODS; do
                   echo "--- Processing $pod ---"
@@ -72,10 +74,16 @@ spec:
                   fi
 
                   # Disk usage after cleanup
-                  disk_after=$(kubectl exec "$pod" -n wazuh -- df -h /etc/filebeat 2>/dev/null | awk 'NR==2 {print $3"/"$2" ("$5")"}' || echo "unknown")
+                  disk_raw=$(kubectl exec "$pod" -n wazuh -- df /etc/filebeat 2>/dev/null | awk 'NR==2 {print $5}' | tr -d '%' || echo "0")
+                  disk_human=$(kubectl exec "$pod" -n wazuh -- df -h /etc/filebeat 2>/dev/null | awk 'NR==2 {print $3"/"$2" ("$5")"}' || echo "unknown")
 
-                  echo "  ✅ Deleted $before file(s). Disk: $disk_after"
-                  cleanup_summary="$cleanup_summary\n*$pod:* deleted $before file(s) — disk used: $disk_after"
+                  echo "  ✅ Deleted $before file(s). Disk: $disk_human"
+                  cleanup_summary="$cleanup_summary\n*$pod:* deleted $before file(s) — disk used: $disk_human"
+
+                  if [ "$disk_raw" -ge 50 ] 2>/dev/null; then
+                    disk_warn=1
+                    disk_warn_details="$disk_warn_details\n*$pod:* $disk_human"
+                  fi
                 done
 
                 echo ""
@@ -84,16 +92,18 @@ spec:
                 if [ $failed -eq 1 ]; then
                   echo "🚨 Cleanup completed with errors. Sending alert to Google Chat..."
                   curl -s -X POST -H 'Content-Type: application/json' \
-                    --data "{\"text\":\"🚨 *Wazuh Log Cleanup Alert:*\n\nRetention: ${RETENTION_DAYS} days\n\n*Errors:*$failed_details\n*Partial results:*$cleanup_summary\"}" \
+                    --data "{\"text\":\"🚨 *Wazuh Log Cleanup — errors detected:*\n\nRetention: ${RETENTION_DAYS} days\n\n*Errors:*$failed_details\n*Disk usage:*$cleanup_summary\"}" \
                     "$CHAT_WEBHOOK_URL"
                   echo "Alert sent."
                   exit 1
-                else
-                  echo "✅ Cleanup completed successfully. Sending summary to Google Chat..."
+                elif [ "${disk_warn:-0}" -eq 1 ]; then
+                  echo "⚠️  Disk above 50% on one or more pods. Sending alert to Google Chat..."
                   curl -s -X POST -H 'Content-Type: application/json' \
-                    --data "{\"text\":\"✅ *Wazuh Log Cleanup completed:*\n\nRetention: ${RETENTION_DAYS} days\n$cleanup_summary\"}" \
+                    --data "{\"text\":\"⚠️ *Wazuh Log Cleanup — high disk usage:*\n\nRetention: ${RETENTION_DAYS} days\n\n*Pods above 50%:*$disk_warn_details\n\n*All results:*$cleanup_summary\"}" \
                     "$CHAT_WEBHOOK_URL"
-                  echo "Summary sent."
+                  echo "Alert sent."
+                else
+                  echo "✅ Cleanup completed. Disk below 50% on all pods — no notification sent."
                 fi
 
                 echo "=== Done ==="
