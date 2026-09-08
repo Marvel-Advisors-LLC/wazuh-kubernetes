@@ -1439,6 +1439,11 @@ A lightweight container runs periodic API queries against the Wazuh Indexer to v
   - checks if the alert whose rule ID is 91648 has arrived that day, if so, then send an alert, that rule id indicates
   - This alert triggers when the Wazuh Office 365 integration module encounters three consecutive request failures to the configured tenant. Usually indicates communication or configuration issues with the Microsoft API or tenant settings.
 
+- Node DiskPressure
+  - Query: `GET /api/v1/nodes` via the Kubernetes API (uses the `wazuh-indexer-healthcheck` service account with a ClusterRole that allows `get/list` on nodes)
+  - Goal: detect if any cluster node has the `DiskPressure` condition set to `True` before Kubernetes starts evicting pods (~85% root disk usage).
+  - Note: this checks the **node root disk** (containerd images, OS), not the OpenSearch data volume. The OpenSearch data volume is covered by the `/_cat/allocation` check above.
+
 
 #### Example check commands
 ```bash

@@ -9,6 +9,7 @@ spec:
     spec:
       template:
         spec:
+          serviceAccountName: wazuh-indexer-healthcheck
           containers:
           - name: indexer-healthcheck
             image: alpine/curl:latest
@@ -124,6 +125,31 @@ spec:
                 fi
 
 
+                echo "✅ Checking node DiskPressure..."
+                K8S_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+                K8S_CA=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+
+                nodes_response=$(curl -sk \
+                  --cacert "$K8S_CA" \
+                  -H "Authorization: Bearer $K8S_TOKEN" \
+                  "https://kubernetes.default.svc/api/v1/nodes" || true)
+
+                disk_pressure_nodes=$(echo "$nodes_response" | jq -r '
+                  .items[] |
+                  .metadata.name as $n |
+                  .status.conditions[] |
+                  select(.type=="DiskPressure" and .status=="True") |
+                  $n' 2>/dev/null || true)
+
+                if [ -n "$disk_pressure_nodes" ]; then
+                  echo "❌ DiskPressure detected on: $disk_pressure_nodes"
+                  failed=1
+                  failed_services="$failed_services\n*Service:* Node DiskPressure\n*Nodes:* $disk_pressure_nodes\n"
+                else
+                  echo "✅ No DiskPressure on any node"
+                fi
+
+
                 echo "✅ Checking for invalid_request events (rule.id 91648)..."
 
                 CURRENT_DATE=$(date -u +"%Y.%m.%d")
@@ -184,3 +210,31 @@ spec:
 
                 echo "Indexer healthcheck completed."
           restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: wazuh-indexer-healthcheck
+  namespace: wazuh
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: wazuh-indexer-healthcheck-role
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: wazuh-indexer-healthcheck-binding
+subjects:
+  - kind: ServiceAccount
+    name: wazuh-indexer-healthcheck
+    namespace: wazuh
+roleRef:
+  kind: ClusterRole
+  name: wazuh-indexer-healthcheck-role
+  apiGroup: rbac.authorization.k8s.io
